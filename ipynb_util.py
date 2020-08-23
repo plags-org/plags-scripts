@@ -3,7 +3,7 @@ import json
 import sys
 from typing import List
 
-from ipynb_metadata import MATERIALS_METADATA
+from ipynb_metadata import COMMON_METADATA
 
 if (sys.version_info.major, sys.version_info.minor) < (3, 7):
     print('[ERROR] This script requires Python >= 3.7.')
@@ -42,7 +42,7 @@ def save_as_notebook(notebook_path: str, cells: List[dict], metadata: dict):
         'cells': cells,
         'metadata': metadata,
         'nbformat': 4,
-        'nbformat_minor': 2
+        'nbformat_minor': 4
     }
     with open(notebook_path, 'w', encoding='utf-8', newline='\n') as f:
         json.dump(ipynb, f, indent=1, ensure_ascii=False)
@@ -54,4 +54,4 @@ def save_markdown_as_ipynb(notebook_path: str, markdown_lines: List[str]):
         'metadata': {},
         'source': markdown_lines
     }]
-    save_as_notebook(notebook_path, cells, MATERIALS_METADATA)
+    save_as_notebook(notebook_path, cells, COMMON_METADATA)

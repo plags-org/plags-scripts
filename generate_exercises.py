@@ -10,6 +10,11 @@ import collections
 import copy
 from typing import List, Dict, Iterable, Tuple
 
+import json
+import hashlib
+import logging
+logging.getLogger().setLevel('INFO')
+
 import yaml
 
 import ipynb_metadata
@@ -21,12 +26,11 @@ if (sys.version_info.major, sys.version_info.minor) < (3, 7):
     sys.exit(1)
 
 HOMEDIR = 'exercises'
-
-ALL_TARGET_DIRS = frozenset(('ex1',))
+INTRODCTION_FILE = 'intro.ipynb'
 
 SUBMISSION_CELL_FORMAT = """
 ##########################################################
-##  <[ {exercise_id_str} ]> 解答セル (Answer cell)
+##  <[ {exercise_key} ]> 解答セル (Answer cell)
 ##  このコメントの書き変えを禁ず (Never edit this comment)
 ##########################################################
 
@@ -37,77 +41,44 @@ REDIRECTION_CELL_FORMAT = """
 # Use {redirect_to} instead of this cell
 """.strip()
 
-class Language(enum.Enum):
-    JA = enum.auto()
-    EN = enum.auto()
-
-COURSE_LANGUAGES = tuple(Language)
-
-MARKDOWN_CELL_CONTENT_ABOVE_STUDENT_TEST_I18N = {
-    Language.JA: '提出前に以下のテストセルを実行し、 `True` のみが出力されることを確認してください。',
-    Language.EN: 'Before submission, execute the following test cell and check if only `True` is printed.',
-}
-
-NOTEBOOK_TITLE_FUNCTION_TYPE_I18N = {
-    Language.JA: {
-        **{d: f'第{d[3:]}回予習課題' for d in ALL_TARGET_DIRS if d.startswith('pre')},
-        **{d: f'第{d[2:]}回本課題'   for d in ALL_TARGET_DIRS if d.startswith('ex')},
-        **{'project1': 'ミニプロジェクト（基礎課題）'},
-    },
-    Language.EN: {
-        **{d: f'Preparations {d[3:]}' for d in ALL_TARGET_DIRS if d.startswith('pre')},
-        **{d: f'Exercises {d[2:]}'    for d in ALL_TARGET_DIRS if d.startswith('ex')},
-        **{'project1': 'Miniproject (Basic exercises)'},
-    },
-}
-
-COURSE_EXERCISE_INFO = 'course_exercise_info'
-COURSE_CONCRETES_DIR = os.path.join(COURSE_EXERCISE_INFO, 'course_concretes')
-SETTINGS_DIR = os.path.join(COURSE_EXERCISE_INFO, 'settings')
-EXERCISE_CONCRETES_DIR = os.path.join(COURSE_EXERCISE_INFO, 'exercise_concretes')
+AUTOGRADE_DIR = 'autograde'
 DOCS_SUBDIR = 'docs'
-EXAMPLES_SUBDIR = 'examples'
 TESTS_SUBDIR = 'tests'
 
-KEY_WARNING = 'WARNING: NEVER EDIT THE SYSTEM CELLS !!!'
-KEY_CONTENT = 'CONTENT'
-KEY_STUDENT_CODE_CELL = 'STUDENT_CODE_CELL'
-KEY_EXPLANATION = 'EXPLANATION'
-KEY_ANSWER_EXAMPLES = 'ANSWER_EXAMPLES'
-KEY_STUDENT_TEST_CELL = 'STUDENT_TEST_CELL'
-KEY_SYSTEM_TEST_CASES_EXECUTE_CELL = 'SYSTEM_TEST_CASES_EXECUTE_CELL'
-KEY_SYSTEM_TEST_CASES = 'SYSTEM_TEST_CASES'
-KEY_SYSTEM_TEST_REQUIRE_FILES = 'SYSTEM_TEST_REQUIRE_FILES'
-KEY_SYSTEM_TEST_SETTING = 'SYSTEM_TEST_SETTING'
-
-CellType = ipynb_util.NotebookCellType
-
-class PropertyFlag(enum.Flag):
+class FieldKey(enum.Enum):
     WARNING = enum.auto()
+    CONTENT = enum.auto()
+    STUDENT_CODE_CELL = enum.auto()
+    EXPLANATION = enum.auto()
+    ANSWER_EXAMPLES = enum.auto()
+    STUDENT_TESTS = enum.auto()
+    SYSTEM_TEST_CASES_EXECUTE_CELL = enum.auto()
+    SYSTEM_TEST_CASES = enum.auto()
+    SYSTEM_TEST_REQUIRE_FILES = enum.auto()
+    SYSTEM_TEST_SETTING = enum.auto()
+
+class FieldProperty(enum.Flag):
+    SINGLE = enum.auto()
     LIST = enum.auto()
     OPTIONAL = enum.auto()
     MARKDOWN_HEADED = enum.auto()
-    YAML = enum.auto()
     FILE = enum.auto()
-    CONTENT = enum.auto()
-    SETTING = enum.auto()
-    REQUIRE_FILES = enum.auto()
+    CODE = enum.auto()
 
-SplitKey = collections.namedtuple('SplitKey', ('name', 'cell_type', 'lang', 'flags'))
+FIELD_PROPERTIES = {
+    FieldKey.WARNING: FieldProperty(0),
+    FieldKey.CONTENT: FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED,
+    FieldKey.STUDENT_CODE_CELL: FieldProperty.SINGLE | FieldProperty.CODE,
+    FieldKey.EXPLANATION: FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED | FieldProperty.OPTIONAL,
+    FieldKey.ANSWER_EXAMPLES: FieldProperty.LIST | FieldProperty.OPTIONAL,
+    FieldKey.STUDENT_TESTS: FieldProperty.LIST | FieldProperty.OPTIONAL,
+    FieldKey.SYSTEM_TEST_CASES: FieldProperty.LIST | FieldProperty.FILE,
+    FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL: FieldProperty.SINGLE | FieldProperty.CODE,
+    FieldKey.SYSTEM_TEST_REQUIRE_FILES: FieldProperty.CODE | FieldProperty.OPTIONAL,
+    FieldKey.SYSTEM_TEST_SETTING: FieldProperty.SINGLE,
+}
 
-SPLIT_KEYS = (
-    SplitKey(KEY_WARNING, CellType.CODE, None, PropertyFlag.WARNING),
-    *(SplitKey(f'{KEY_CONTENT}_{lang.name}', None, lang, PropertyFlag.LIST | PropertyFlag.MARKDOWN_HEADED) for lang in COURSE_LANGUAGES),
-    SplitKey(KEY_STUDENT_CODE_CELL, CellType.CODE, None, PropertyFlag(0)),
-    *(SplitKey(f'{KEY_EXPLANATION}_{lang.name}', None, lang, PropertyFlag.LIST | PropertyFlag.MARKDOWN_HEADED | PropertyFlag.OPTIONAL) for lang in [Language.JA]),
-    SplitKey(KEY_ANSWER_EXAMPLES, CellType.CODE, None, PropertyFlag.LIST | PropertyFlag.FILE),
-    SplitKey(KEY_STUDENT_TEST_CELL, CellType.CODE, None, PropertyFlag(0)),
-    SplitKey(KEY_SYSTEM_TEST_CASES_EXECUTE_CELL, CellType.CODE, None, PropertyFlag(0)),
-    SplitKey(KEY_SYSTEM_TEST_CASES, CellType.CODE, None, PropertyFlag.LIST | PropertyFlag.FILE),
-    SplitKey(KEY_SYSTEM_TEST_REQUIRE_FILES, CellType.RAW, None, PropertyFlag.YAML | PropertyFlag.REQUIRE_FILES | PropertyFlag.OPTIONAL),
-    SplitKey(KEY_SYSTEM_TEST_SETTING, CellType.RAW, None, PropertyFlag.YAML | PropertyFlag.SETTING),
-)
-assert len(SPLIT_KEYS) == len({x.name for x in SPLIT_KEYS}), 'The elements of `SPLIT_KEYS` must be distinct by the `name` attribute.'
+CellType = ipynb_util.NotebookCellType
 
 class Cell(collections.namedtuple('Cell', ('cell_type', 'source'))):
     def to_ipynb(self):
@@ -124,19 +95,17 @@ class Cell(collections.namedtuple('Cell', ('cell_type', 'source'))):
 
 @dataclasses.dataclass
 class Exercise:
-    id_str: str     # id string
-    dirname: str    # directory name
-    pseudo: bool    # if a pseudo exercise only of which the content is used
-    version: str    # version str
-    content: Dict[Language, List[Cell]]     # The description of exercise, starts with multiple '#'s and exercise title in lang
-    student_code_cell: Cell                 # Code cell
-    explanation: Dict[Language, List[Cell]] # The explanation of exercise, starts with multiple '#'s and exercise title in lang
-    answer_examples: List[Tuple[Tuple[str,str],Cell]] # list of (filename, content, original code cell)
-    student_test_cell: Cell                 # Code cell
-    system_test_cases_execute_cell: Cell    # Code cell
-    system_test_cases: List[Tuple[str,str,Cell]] # list of (filename, content, original code cell)
-    system_test_require_files: List[List[str]] # List of paths, each of which is of List[str]; from yaml in raw cell (optional)
-    system_test_setting: object             # From yaml in raw cell
+    key: str        # Key string
+    dirpath: str    # Directory path
+    version: str    # Version string
+    content: List[Cell]                  # The description of exercise, starts with multiple '#'s
+    student_code_cell: Cell              # Code cell
+    explanation: List[Cell]              # The explanation of exercise, starts with multiple '#'s
+    answer_examples: List[Cell]          # List of (filename, content, original code cell)
+    student_tests: List[Cell]            # List of cells
+    system_test_cases: List[Tuple[str,str,Cell]] # List of (filename, content, original code cell)
+    system_test_require_files: List[str] # List of relative paths from dirpath
+    system_test_setting: object          # From yaml in raw cell
 
     def submission_redirection(self):
         m = re.match(r'#[ \t]*redirect-to[ \t]*:[ \t]*(\S+?\.ipynb)', self.student_code_cell.source)
@@ -147,16 +116,8 @@ class Exercise:
         if redirect_to:
             s = REDIRECTION_CELL_FORMAT.format(redirect_to=redirect_to)
         else:
-            s = SUBMISSION_CELL_FORMAT.format(exercise_id_str=self.id_str, content=self.student_code_cell.source)
+            s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.student_code_cell.source)
         return Cell(CellType.CODE, s)
-
-
-def validate_header_markdown_cell(cell: Cell):
-    assert cell.cell_type == CellType.MARKDOWN
-    first_line_regex = r'#+\s+(.*)'
-    first_line = cell.source.strip().splitlines()[0]
-    assert re.fullmatch(first_line_regex, first_line) is not None, \
-        f'The first content cell does not start with a heading in Markdown: `{first_line}`.'
 
 def split_file_code_cell(cell: Cell):
     assert cell.cell_type == CellType.CODE
@@ -168,126 +129,129 @@ def split_file_code_cell(cell: Cell):
 
 def load_system_test_require_files(cells: List[Cell]):
     """
-    `require_files` must match the following structure:
-    `{'require_files': List[Union[str, List[str]]]}`
+    A single code cell containing a Python expression to return a list.
     """
     if not cells:
         return []
-    assert cells[0].cell_type == CellType.RAW
-    yaml_data = yaml.safe_load(cells[0].source)
-    assert len(yaml_data) == 1 and 'require_files' in yaml_data and isinstance(yaml_data['require_files'], list)
-    require_files = [x if isinstance(x, list) else [x] for x in yaml_data['require_files']]
-    assert all(map(bool, require_files)) and all(isinstance(s, str) for path in require_files for s in path)
+    assert len(cells) == 1
+    assert cells[0].cell_type == CellType.CODE
+    require_files = eval(cells[0].source) if cells[0].source.strip() else []
+    assert isinstance(require_files, list)
+    assert all(isinstance(x, str) for x in require_files)
     return require_files
+
+def load_system_test_setting(cells: List[Cell]):
+    #TODO: more precise validation
+    return yaml.safe_load(cells[0].source)
 
 def split_cells(raw_cells: Iterable[dict]):
     CONTENT_TYPE_REGEX = r'\*\*\*CONTENT_TYPE:\s*(.+?)\*\*\*'
     results = {}
-    current_split_key_idx = -1
+    current_key = None
     cells = []
     for cell_type, source in ipynb_util.normalized_cells(raw_cells):
-        if commandline_options.verbose:
-            print('[TRACE]', SPLIT_KEYS[current_split_key_idx].name if current_split_key_idx > 0 else None,
-                  repr(source if len(source) <= 64 else source[:64] + ' ...'))
+        logging.debug('[TRACE] %s %s', current_key, repr(source if len(source) <= 64 else source[:64] + ' ...'))
         if source.strip() == '':
             continue
 
         if cell_type in (CellType.CODE, CellType.RAW):
+            assert current_key is not None
             cells.append(Cell(cell_type, source))
             continue
         assert cell_type == CellType.MARKDOWN
 
         matches = list(re.finditer(CONTENT_TYPE_REGEX, source))
         if len(matches) == 0:
+            assert current_key is not None
             cells.append(Cell(cell_type, source))
             continue
-        assert len(matches) == 1, f'Multiple split keys found in cell `{source}`.'
+        assert len(matches) == 1, f'Multiple FieldKey found in cell `{source}`.'
 
-        if current_split_key_idx >= 0:
-            results[SPLIT_KEYS[current_split_key_idx]] = cells
+        if current_key is None:
+            current_key = getattr(FieldKey, matches[0][1])
+        else:
+            results[current_key] = cells
+            current_key = getattr(FieldKey, matches[0][1])
             cells = []
-
-        current_split_key_idx += 1
-        assert matches[0][1] == SPLIT_KEYS[current_split_key_idx].name, \
-            f'Split key `{SPLIT_KEYS[current_split_key_idx].name}` expected but {matches[0][1]} found.'
-        assert SPLIT_KEYS[current_split_key_idx] not in results, \
-            f'Duplicated split key `{matches[0][1]}`.'
-
-    if current_split_key_idx < len(SPLIT_KEYS):
-        results[SPLIT_KEYS[current_split_key_idx]] = cells
-
+    results[current_key] = cells
     return results
 
-def load_exercise(dirname, exercise_id_str):
-    raw_cells, metadata = ipynb_util.load_cells(os.path.join(HOMEDIR, dirname, exercise_id_str + '.ipynb'))
-    pseudo = re.fullmatch(rf'{dirname}-(\d+)-.+?', exercise_id_str)[1] == '0'
-    version = metadata['exercise_version']
-    exercise_kwargs = {'id_str': exercise_id_str, 'dirname': dirname, 'pseudo': pseudo, 'version': version}
-    for split_key, cells in split_cells(raw_cells).items():
-        if PropertyFlag.WARNING in split_key.flags:
+def load_exercise(dirpath, exercise_key):
+    raw_cells, metadata = ipynb_util.load_cells(os.path.join(dirpath, exercise_key + '.ipynb'))
+    dirname = os.path.basename(dirpath)
+    version = metadata.get('judge_master', {}).get('version', '')
+    exercise_kwargs = {'key': exercise_key, 'dirpath': dirpath, 'version': version}
+    for field_key, cells in split_cells(raw_cells).items():
+        if field_key in (FieldKey.WARNING, FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL):
             continue
-        if commandline_options.verbose:
-            print('[TRACE]', f'Validate split key `{split_key.name}`')
+        logging.debug(f'[TRACE] Validate FieldKey `{field_key.name}`')
 
-        mask = (PropertyFlag.LIST | PropertyFlag.OPTIONAL) & split_key.flags
-        if mask == PropertyFlag.LIST:
-            assert len(cells) != 0, f'Split key `{split_key.name}` must not be empty.'
-        elif mask == PropertyFlag.OPTIONAL:
-            assert len(cells) <= 1, f'Split key `{split_key.name}` must have at most 1 cell but has {len(cells)}.'
-        elif mask == PropertyFlag(0):
-            assert len(cells) == 1, f'Split key `{split_key.name}` must have exactly 1 cell but has {len(cells)}.'
+        prop = FIELD_PROPERTIES[field_key]
+        if (FieldProperty.OPTIONAL | FieldProperty.OPTIONAL) in prop:
+            pass
+        elif (FieldProperty.OPTIONAL) in prop:
+            assert len(cells) <= 1, f'FieldKey `{field_key.name}` must have at most 1 cell but has {len(cells)}.'
+        elif FieldProperty.LIST in prop:
+            assert len(cells) > 0, f'FieldKey `{field_key.name}` must not be empty.'
+        elif FieldProperty.SINGLE in prop:
+            assert len(cells) == 1, f'FieldKey `{field_key.name}` must have 1 cell.'
 
-        if len(cells) > 0 and PropertyFlag.MARKDOWN_HEADED in split_key.flags:
-            validate_header_markdown_cell(cells[0])
+        if FieldProperty.CODE in prop:
+            assert all(x.cell_type == CellType.CODE for x in cells), f'FieldKey `{field_key.name}` must have only code cell(s).'
 
-        if PropertyFlag.SETTING in split_key.flags:
-            assert cells[0].cell_type == CellType.RAW
-            value = yaml.safe_load(cells[0].source) #TODO: more precise validation
-        elif PropertyFlag.REQUIRE_FILES in split_key.flags:
-            value = load_system_test_require_files(cells)
-        elif PropertyFlag.FILE in split_key.flags:
-            value = [split_file_code_cell(x) for x in cells]
-        else:
-            assert split_key.cell_type == None or all(x.cell_type == split_key.cell_type for x in cells), \
-                'Cell of type {cell.cell_type} does not match split key `{split_key.name}`.'
-            value = cells[0] if mask == PropertyFlag(0) else cells
+        if len(cells) > 0 and FieldProperty.MARKDOWN_HEADED in prop:
+            assert cells[0].cell_type == CellType.MARKDOWN
+            first_line_regex = r'#+\s+(.*)'
+            first_line = cells[0].source.strip().splitlines()[0]
+            assert re.fullmatch(first_line_regex, first_line) is not None, \
+                f'The first content cell does not start with a heading in Markdown: `{first_line}`.'
 
-        if split_key.lang:
-            key = split_key.name.rsplit('_', maxsplit=1)[0].lower()
-            value_i18n = exercise_kwargs.setdefault(key, {})
-            value_i18n[split_key.lang] = value
-            assert all(len(value) == len(x) for x in value_i18n.values()), \
-                'The number of content cells in `{split_key.lang}` does not match with that in other languages.'
-        else:
-            exercise_kwargs[split_key.name.lower()] = value
+        exercise_kwargs[field_key.name.lower()] = {
+            FieldKey.SYSTEM_TEST_SETTING: lambda: load_system_test_setting(cells),
+            FieldKey.SYSTEM_TEST_REQUIRE_FILES: lambda: load_system_test_require_files(cells),
+            FieldKey.SYSTEM_TEST_CASES: lambda: [split_file_code_cell(x) for x in cells],
+            FieldKey.STUDENT_CODE_CELL: lambda: cells[0],
+        }.get(field_key, lambda: cells)()
 
     return Exercise(**exercise_kwargs)
 
 def cleanup_exercise(exercises: Iterable[Exercise]):
     for exercise in exercises:
-        filename = os.path.join(HOMEDIR, exercise.dirname, f'{exercise.id_str}.ipynb')
-        cells, metadata = ipynb_util.load_cells(filename, True)
+        filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
+        cells, metadata = ipynb_util.load_cells(filepath, True)
         cells_new = [Cell(cell_type, source.strip()).to_ipynb() for cell_type, source in ipynb_util.normalized_cells(cells)]
         if commandline_options.renew_version:
-            print(f'[INFO] Renew version of {exercise.id_str}')
-            metadata = ipynb_metadata.EXERCISE_METADATA
-            exercise.version = ipynb_metadata.EXERCISE_METADATA['exercise_version']
-        ipynb_util.save_as_notebook(filename, cells, metadata)
+            logging.info(f'[INFO] Renew version of {exercise.key}')
+            if commandline_options.renew_version == hashlib.sha1:
+                exercise_definition = {
+                    'content': [x.to_ipynb() for x in exercise.content],
+                    'submission_cell': exercise.submission_cell().to_ipynb(),
+                    'student_tests': [x.to_ipynb() for x in exercise.student_tests],
+                }
+                m = hashlib.sha1()
+                m.update(json.dumps(exercise_definition).encode())
+                exercise.version = m.hexdigest()
+            else:
+                assert isinstance(commandline_options.renew_version, str)
+                exercise.version = commandline_options.renew_version
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version)
+        ipynb_util.save_as_notebook(filepath, cells_new, metadata)
 
-def create_notebook_cells(dirname: str, lang: Language, is_answer: bool, exercises: Iterable[Exercise]):
-    cells = [Cell(CellType.MARKDOWN, '# ' + NOTEBOOK_TITLE_FUNCTION_TYPE_I18N[lang][dirname])]
+def create_notebook_cells(dirpath: str, is_answer: bool, exercises: Iterable[Exercise]):
+    try:
+        raw_cells, _ = ipynb_util.load_cells(os.path.join(dirpath, INTRODCTION_FILE))
+        cells = [Cell(t, s) for t, s in ipynb_util.normalized_cells(raw_cells)]
+    except FileNotFoundError:
+        cells = [Cell(CellType.MARKDOWN, f'# {os.path.basename(dirpath)}')]
     for exercise in exercises:
-        cells.extend(exercise.content[lang])
-        if exercise.pseudo:
-            continue
+        cells.extend(exercise.content)
         if is_answer:
-            cells.extend(c for _, _, c in exercise.answer_examples)
+            cells.extend(exercise.answer_examples)
             cells.append(summarize_testcases(exercise))
-            cells.extend(exercise.explanation.get(lang, []))
+            cells.extend(exercise.explanation)
         else:
             cells.append(exercise.submission_cell())
-            cells.append(Cell(CellType.MARKDOWN, MARKDOWN_CELL_CONTENT_ABOVE_STUDENT_TEST_I18N[lang]))
-            cells.append(exercise.student_test_cell)
+            cells.extend(exercise.student_tests)
     return cells
 
 def summarize_testcases(exercise: Exercise):
@@ -304,126 +268,123 @@ def summarize_testcases(exercise: Exercise):
     return Cell(CellType.CODE, '\n'.join(contents))
 
 def create_exercise_concrete(exercise: Exercise):
-    basedir = os.path.join(EXERCISE_CONCRETES_DIR, exercise.id_str)
-    docs_dir, examples_dir, tests_dir = [os.path.join(basedir, d) for d in (DOCS_SUBDIR, EXAMPLES_SUBDIR, TESTS_SUBDIR)]
-    for path in (docs_dir, examples_dir, tests_dir):
-        os.makedirs(path, exist_ok=True)
+    docs_dir, tests_dir = [os.path.join(AUTOGRADE_DIR, exercise.key, d) for d in (DOCS_SUBDIR, TESTS_SUBDIR)]
+    os.makedirs(docs_dir, exist_ok=True)
+    os.makedirs(tests_dir, exist_ok=True)
 
-    for lang, content_cells in exercise.content.items():
-        content_md = ({CellType.MARKDOWN: lambda x: x,
-                       CellType.CODE: lambda x: f'---\n\n```python\n{x.strip()}\n```\n\n---'}[c.cell_type](c.source)
-                      for c in content_cells if c.cell_type != CellType.RAW)
-        with open(os.path.join(docs_dir, f'{lang.name.lower()}.md'), 'w', encoding='utf-8', newline='\n') as f:
-            f.write('\n\n'.join(content_md))
-
-    for name, content, _ in exercise.answer_examples:
-        with open(os.path.join(examples_dir, name), 'w', encoding='utf_8', newline='\n') as f:
-            f.write(content)
+    content_md = ({CellType.MARKDOWN: lambda x: x,
+                   CellType.CODE: lambda x: f'---\n\n```python\n{x.strip()}\n```\n\n---'}[c.cell_type](c.source)
+                  for c in exercise.content if c.cell_type != CellType.RAW)
+    with open(os.path.join(docs_dir, 'ja.md'), 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n\n'.join(content_md))
 
     system_test_setting = copy.deepcopy(exercise.system_test_setting)
     system_test_setting['editor']['initial_source'] = exercise.student_code_cell.source
     system_test_setting['editor']['exercise_version'] = exercise.version
-    with open(os.path.join(tests_dir, 'setting.yml'), 'w', encoding='utf_8') as f:
+    with open(os.path.join(tests_dir, 'setting.yml'), 'w', encoding='utf-8') as f:
         yaml.dump(system_test_setting, stream=f, sort_keys=False)
     for name, content, _ in exercise.system_test_cases:
-        with open(os.path.join(tests_dir, name), 'w', encoding='utf_8', newline='\n') as f:
+        with open(os.path.join(tests_dir, name), 'w', encoding='utf-8', newline='\n') as f:
             f.write(content)
 
     for path in exercise.system_test_require_files:
-        dstdir = os.path.join(tests_dir, *path[:-1])
-        if len(path) > 1:
-            os.makedirs(dstdir, exist_ok=True)
-        shutil.copyfile(os.path.join(HOMEDIR, exercise.dirname, *path), os.path.join(dstdir, path[-1]))
+        dest = os.path.join(tests_dir, path)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copyfile(os.path.join(exercise.dirpath, path), dest)
 
 def create_system_settings(exercises: Iterable[Exercise]):
-    # Prepare directories
-    for path in (COURSE_CONCRETES_DIR, SETTINGS_DIR):
-        if os.path.exists(path):
-            assert os.path.isdir(path)
-        else:
-            os.makedirs(path)
-
-    # Clean up directory
-    shutil.rmtree(EXERCISE_CONCRETES_DIR, ignore_errors=True)
+    shutil.rmtree(AUTOGRADE_DIR, ignore_errors=True)
     for exercise in exercises:
-        print(f'[INFO] creating system settings for `{exercise.id_str}` ...')
+        logging.info(f'[INFO] creating system settings for `{exercise.key}` ...')
         create_exercise_concrete(exercise)
-        #TODO: validation as an exercise_concrete
 
-    print(f'[INFO] creating system settings zip file `{COURSE_EXERCISE_INFO}.zip` ...')
-    with zipfile.ZipFile(COURSE_EXERCISE_INFO + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, _, files in os.walk(COURSE_EXERCISE_INFO):
-            for file in files:
-                zipf.write(os.path.join(root, file))
+    for exercise_dir in os.listdir(AUTOGRADE_DIR):
+        with zipfile.ZipFile(os.path.join(AUTOGRADE_DIR, exercise_dir + '.zip'), 'w', zipfile.ZIP_DEFLATED) as zipf:
+            target_dir = os.path.join(AUTOGRADE_DIR, exercise_dir)
+            for dirpath, _, files in os.walk(os.path.join(target_dir)):
+                arcdirpath = dirpath[len(os.path.join(target_dir, '')):]
+                for fname in files:
+                    zipf.write(os.path.join(dirpath, fname), os.path.join(arcdirpath, fname))
+
+    logging.info(f'[INFO] creating system settings zip file `{AUTOGRADE_DIR}.zip` ...')
+    with zipfile.ZipFile(AUTOGRADE_DIR + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for exercise in exercises:
+            zipf.write(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), exercise.key + '.ipynb')
+        for fname in os.listdir(AUTOGRADE_DIR):
+            if fname.endswith('.zip'):
+                zipf.write(os.path.join(AUTOGRADE_DIR, fname), fname)
 
 def generate_artifacts(exercises: Iterable[Exercise]):
     artifact_index = collections.defaultdict(list)
     for exercise in exercises:
-        artifact_index[exercise.dirname].append(exercise)
-    for dirname, exercises in artifact_index.items():
-        for lang in COURSE_LANGUAGES:
-            for is_answer in (False, True):
-                cells = [c.to_ipynb() for c in create_notebook_cells(dirname, lang, is_answer, exercises)]
-                suffix = '-ans' if is_answer else ''
-                filepath = os.path.join(HOMEDIR, dirname, f'{dirname}{lang.name.lower()}{suffix}.ipynb')
-                if is_answer:
-                    metadata = ipynb_metadata.MATERIALS_METADATA
-                else:
-                    id_to_ver = {e.id_str: e.version for e in exercises if not e.pseudo and e.submission_redirection() is None}
-                    metadata = ipynb_metadata.submission_metadata(id_to_ver, True)
-                ipynb_util.save_as_notebook(filepath, cells, metadata)
+        artifact_index[exercise.dirpath].append(exercise)
+    for dirpath, exercises in artifact_index.items():
+        dirname = os.path.basename(dirpath)
+        for is_answer in (False, True):
+            cells = [c.to_ipynb() for c in create_notebook_cells(dirpath, is_answer, exercises)]
+            if is_answer:
+                filepath = os.path.join(dirpath, f'{dirname}.ans.ipynb')
+                metadata = ipynb_metadata.COMMON_METADATA
+            else:
+                filepath = os.path.join(dirpath, f'{dirname}.ipynb')
+                key_to_ver = {e.key: e.version for e in exercises if e.submission_redirection() is None}
+                metadata = ipynb_metadata.submission_metadata(key_to_ver, True)
+            ipynb_util.save_as_notebook(filepath, cells, metadata)
         for e in exercises:
             redirect_to = e.submission_redirection()
             if redirect_to is None:
                 continue
-            metadata = ipynb_metadata.submission_metadata({e.id_str: e.version}, True)
+            metadata = ipynb_metadata.submission_metadata({e.key: e.version}, True)
             filepath = os.path.join(HOMEDIR, dirname, redirect_to)
             cells, _ = ipynb_util.load_cells(filepath, True)
-            assert any(re.search(rf'<\[ {e.id_str} \]>', line)
+            assert any(re.search(rf'<\[ {e.key} \]>', line)
                        for c in cells if c['cell_type'] == CellType.CODE.value for line in c['source']), \
-                f'{redirect_to} has no answer cell for {e.id_str}.'
+                f'{redirect_to} has no answer cell for {e.key}.'
             ipynb_util.save_as_notebook(filepath, cells, metadata)
 
 def main():
     exercises = []
-    for dirname in sorted(x for x in os.listdir(HOMEDIR) if x in set(commandline_options.targets)):
+    targets = commandline_options.targets if commandline_options.targets else [os.path.join(HOMEDIR, x) for x in os.listdir(HOMEDIR)]
+    target_dirs = [x if os.path.basename(x) else os.path.dirname(x) for x in targets if os.path.isdir(x)]
+    for dirpath in sorted(target_dirs):
         exercise_name_index = {}
-        for nb in sorted(os.listdir(os.path.join(HOMEDIR, dirname))):
-            match = re.fullmatch(r'((pre\d|ex\d|project\d)-(\d+)-.+?)\.ipynb', nb)
-            if match is None:
+        dirname = os.path.basename(dirpath)
+        for nb in sorted(os.listdir(dirpath)):
+            match = re.fullmatch(fr'({dirname}([-_].*))\.ipynb', nb)
+            if match is None or nb.endswith('.ans.ipynb'):
                 continue
-            exercise_id_str, exercise_prefix, exercise_sub_id = match.groups()
-            assert dirname == exercise_prefix, \
-                f'[ERROR] Exercise master `{exercise_id_str}` exists in an unexpected directory `{dirname}`.'
-            assert (dirname, exercise_sub_id) not in exercise_name_index, \
-                f'[ERROR] Exercise master `{exercise_id_str}` conflicts with exercise `{exercise_name_index[(dirname, exercise_sub_id)]}`.'
-            exercise_name_index[exercise_sub_id] = exercise_id_str
-            print('[INFO] Load', f'{dirname}/{nb}')
-            exercises.append(load_exercise(dirname, exercise_id_str))
+            exercise_key, exercise_subkey = match.groups()
+            assert exercise_key not in exercise_name_index, \
+                f'[ERROR] Exercise master `{exercise_key}` conflicts with exercise `{exercise_name_index[exercise_key]}`.'
+            exercise_name_index[exercise_key] = os.path.join(dirpath, exercise_key)
+            logging.info(f'[INFO] Load {dirpath}/{nb}')
+            exercises.append(load_exercise(dirpath, exercise_key))
 
     if commandline_options.dry_run:
-        print('[INFO] Dry run')
+        logging.info('[INFO] Dry run')
         for exercise in exercises:
-            print(f'[INFO]     - {exercise.id_str}.ipynb')
+            logging.info(f'[INFO]     - {exercise.key}.ipynb')
         return
 
-    print('[INFO] Start to clean up master notebooks')
+    logging.info('[INFO] Start to clean up master notebooks')
     cleanup_exercise(exercises)
 
-    print('[INFO] Start to generate notebooks')
+    logging.info('[INFO] Start to generate notebooks')
     generate_artifacts(exercises)
 
     if commandline_options.dump_setting_zip:
-        print('[INFO] Start to generate judge system settings')
+        logging.info('[INFO] Start to generate judge system settings')
         create_system_settings(exercises)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--verbose', action='store_true', help='verbose option')
-    parser.add_argument('-d', '--dry_run', action='store_true', help='dry-run option')
-    parser.add_argument('-s', '--dump_setting_zip', action='store_true', help='dump setting zip')
-    parser.add_argument('-n', '--renew_version', action='store_true', help='renew the version of exercises')
-    parser.add_argument('-t', '--targets', nargs='*', default=ALL_TARGET_DIRS, help='specify target assignments')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
+    parser.add_argument('-d', '--dry_run', action='store_true', help='Dry-run option')
+    parser.add_argument('-s', '--dump_setting_zip', action='store_true', help='Dump setting zip')
+    parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
+    parser.add_argument('-t', '--targets', nargs='*', default=None, help=f'Specify target directories (default: {HOMEDIR}/*)')
     commandline_options = parser.parse_args()
+    if commandline_options.verbose:
+        logging.getLogger().setLevel('DEBUG')
     main()

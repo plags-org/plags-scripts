@@ -1,4 +1,4 @@
-MATERIALS_METADATA = {
+COMMON_METADATA = {
     'kernelspec': {
         'display_name': 'Python 3',
         'language': 'python',
@@ -9,11 +9,22 @@ MATERIALS_METADATA = {
     },
 }
 
-EXERCISE_METADATA = {'exercise_version': None,
-                     **MATERIALS_METADATA}
-
-def submission_metadata(id_to_version, extraction: bool):
+def submission_metadata(key_to_version, extraction: bool):
     return {
-        'judge_submission': {'exercises': id_to_version, 'extraction': extraction},
-        **MATERIALS_METADATA,
+        'judge_submission': {'exercises': key_to_version, 'extraction': extraction},
+        **COMMON_METADATA,
+    }
+
+def master_metadata(exercise_key: str, autograde: bool, version: str, deadlines = None):
+    if deadlines is None:
+        deadlines = {}
+    deadlines = {k: deadlines.get(k) for k in ('begins_at', 'opens_at', 'checks_at', 'closes_at', 'ends_at')}
+    return {
+        'judge_master': {
+            'autograde': autograde,
+            'deadlines': deadlines,
+            'exercise_key': exercise_key,
+            'version': version,
+        },
+        **COMMON_METADATA,
     }
