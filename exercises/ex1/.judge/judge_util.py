@@ -50,26 +50,30 @@ def raise_if_congruent(f, g):
     if all(eq(n, m) or n == m for n, m in zip(ast_nodes(f), ast_nodes(g))):
         raise CongruenceException
 
-class JudgeTestCase(unittest.TestCase):
-    pass
+def testcase(score=1):
+    class JudgeTestCase(unittest.TestCase):
+        score = 1
+    return JudgeTestCase
 
-def judge_case(kind, score):
+def _gen_testmethod_decorator(kind, testcase_cls):
     assert kind in 'CO'
-    assert type(score) == int and score > 0
+    assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
 
     def decorator(func):
-        name = f'test_{kind}_{score}_0_{func.__name__}'
+        name = f'test_{kind}_{testcase_cls.score}_0_{func.__name__}'
         method = staticmethod(func) if kind == 'C' else func
-        setattr(JudgeTestCase, name, method)
+        setattr(testcase_cls, name, method)
         return func
 
     return decorator
 
-def judge_precheck(score):
-    return judge_case('C', score)
+def precheck(testcase_cls):
+    return _gen_testmethod_decorator('C', testcase_cls)
 
-def judge_test(score):
-    return judge_case('O', score)
+def testmethod(testcase_cls):
+    return _gen_testmethod_decorator('O', testcase_cls)
+
+_argument_log = io.StringIO()
 
 def argument_logger(f):
     def argrepr(x):
@@ -85,6 +89,13 @@ def argument_logger(f):
     def wrapper(*args, **kwargs):
         args_repr = [cutoff(argrepr(x)) for x in args]
         args_repr.extend(f'{k}={cutoff(argrepr(v))}' for k, v in kwargs.items())
-        print(f'Called: {f.__name__}({", ".join(args_repr)})', file=sys.stderr)
+        logfile = _argument_log if 'IPython' in sys.modules else sys.stderr
+        print(f'Called: {f.__name__}({", ".join(args_repr)})', file=logfile)
         return f(*args, **kwargs)
-    return f if 'IPython' in sys.modules else wrapper
+    return wrapper
+
+def read_argument_log():
+    global _argument_log
+    log = _argument_log.getvalue()
+    _argument_log = io.StringIO()
+    return log
