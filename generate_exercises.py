@@ -10,12 +10,11 @@ import collections
 import copy
 from typing import List, Dict, Iterable, Tuple
 
+import io
 import json
 import hashlib
 import logging
 logging.getLogger().setLevel('INFO')
-
-import yaml
 
 import ipynb_metadata
 import ipynb_util
@@ -119,6 +118,12 @@ class Exercise:
             s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.student_code_cell.source)
         return Cell(CellType.CODE, s)
 
+    def generate_setting(self):
+        setting = copy.deepcopy(self.system_test_setting)
+        setting['metadata'] = {'name': self.key, 'version': self.version}
+        setting['front']['initial_source'] = self.student_code_cell.source
+        return setting
+
 def split_file_code_cell(cell: Cell):
     assert cell.cell_type == CellType.CODE
     lines = cell.source.strip().splitlines(keepends=True)
@@ -141,8 +146,12 @@ def load_system_test_require_files(cells: List[Cell]):
     return require_files
 
 def load_system_test_setting(cells: List[Cell]):
-    #TODO: more precise validation
-    return yaml.safe_load(cells[0].source)
+    out = io.StringIO()
+    def print_redirected(*args,**kwdargs):
+        kwdargs['file'] = out
+        print(*args, **kwdargs)
+    exec(cells[0].source, {'print': print_redirected})
+    return json.loads(out.getvalue())  #TODO: schema validation
 
 def split_cells(raw_cells: Iterable[dict]):
     CONTENT_TYPE_REGEX = r'\*\*\*CONTENT_TYPE:\s*(.+?)\*\*\*'
@@ -278,11 +287,8 @@ def create_exercise_concrete(exercise: Exercise):
     with open(os.path.join(docs_dir, 'ja.md'), 'w', encoding='utf-8', newline='\n') as f:
         f.write('\n\n'.join(content_md))
 
-    system_test_setting = copy.deepcopy(exercise.system_test_setting)
-    system_test_setting['editor']['initial_source'] = exercise.student_code_cell.source
-    system_test_setting['editor']['exercise_version'] = exercise.version
-    with open(os.path.join(tests_dir, 'setting.yml'), 'w', encoding='utf-8') as f:
-        yaml.dump(system_test_setting, stream=f, sort_keys=False)
+    with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
+        json.dump(exercise.generate_setting(), f, indent=1, ensure_ascii=False)
     for name, content, _ in exercise.system_test_cases:
         with open(os.path.join(tests_dir, name), 'w', encoding='utf-8', newline='\n') as f:
             f.write(content)
