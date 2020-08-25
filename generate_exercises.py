@@ -53,7 +53,6 @@ class FieldKey(enum.Enum):
     STUDENT_TESTS = enum.auto()
     SYSTEM_TEST_CASES_EXECUTE_CELL = enum.auto()
     SYSTEM_TEST_CASES = enum.auto()
-    SYSTEM_TEST_REQUIRE_FILES = enum.auto()
     SYSTEM_TEST_SETTING = enum.auto()
 
 class FieldProperty(enum.Flag):
@@ -73,7 +72,6 @@ FIELD_PROPERTIES = {
     FieldKey.STUDENT_TESTS: FieldProperty.LIST | FieldProperty.OPTIONAL,
     FieldKey.SYSTEM_TEST_CASES: FieldProperty.LIST | FieldProperty.FILE,
     FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL: FieldProperty.SINGLE | FieldProperty.CODE,
-    FieldKey.SYSTEM_TEST_REQUIRE_FILES: FieldProperty.CODE | FieldProperty.OPTIONAL,
     FieldKey.SYSTEM_TEST_SETTING: FieldProperty.SINGLE,
 }
 
@@ -103,7 +101,6 @@ class Exercise:
     answer_examples: List[Cell]          # List of (filename, content, original code cell)
     student_tests: List[Cell]            # List of cells
     system_test_cases: List[Tuple[str,str,Cell]] # List of (filename, content, original code cell)
-    system_test_require_files: List[str] # List of relative paths from dirpath
     system_test_setting: object          # From yaml in raw cell
 
     def submission_redirection(self):
@@ -131,19 +128,6 @@ def split_file_code_cell(cell: Cell):
     match = re.fullmatch(first_line_regex, lines[0].strip())
     assert match is not None, f'RegExp pattern `{first_line_regex}` does not match the first line of a file code cell: {lines[0]}'
     return (match[1], ''.join(lines[1:]).strip() + '\n', cell)
-
-def load_system_test_require_files(cells: List[Cell]):
-    """
-    A single code cell containing a Python expression to return a list.
-    """
-    if not cells:
-        return []
-    assert len(cells) == 1
-    assert cells[0].cell_type == CellType.CODE
-    require_files = eval(cells[0].source) if cells[0].source.strip() else []
-    assert isinstance(require_files, list)
-    assert all(isinstance(x, str) for x in require_files)
-    return require_files
 
 def load_system_test_setting(cells: List[Cell]):
     out = io.StringIO()
@@ -217,7 +201,6 @@ def load_exercise(dirpath, exercise_key):
 
         exercise_kwargs[field_key.name.lower()] = {
             FieldKey.SYSTEM_TEST_SETTING: lambda: load_system_test_setting(cells),
-            FieldKey.SYSTEM_TEST_REQUIRE_FILES: lambda: load_system_test_require_files(cells),
             FieldKey.SYSTEM_TEST_CASES: lambda: [split_file_code_cell(x) for x in cells],
             FieldKey.STUDENT_CODE_CELL: lambda: cells[0],
         }.get(field_key, lambda: cells)()
@@ -293,7 +276,10 @@ def create_exercise_concrete(exercise: Exercise):
         with open(os.path.join(tests_dir, name), 'w', encoding='utf-8', newline='\n') as f:
             f.write(content)
 
-    for path in exercise.system_test_require_files:
+    require_files = set()
+    for x in exercise.system_test_setting['judge']['evaluation_dag']['states'].values():
+        require_files.update(x['require_files'])
+    for path in require_files:
         dest = os.path.join(tests_dir, path)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(os.path.join(exercise.dirpath, path), dest)
