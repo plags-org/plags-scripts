@@ -8,13 +8,12 @@ import argparse
 import dataclasses
 import collections
 import copy
-from typing import List, Dict, Iterable, Tuple
+from typing import List, Iterable, Tuple
 
 import io
 import json
 import hashlib
 import logging
-logging.getLogger().setLevel('INFO')
 
 import ipynb_metadata
 import ipynb_util
@@ -26,6 +25,10 @@ if (sys.version_info.major, sys.version_info.minor) < (3, 7):
 
 HOMEDIR = 'exercises'
 INTRODCTION_FILE = 'intro.ipynb'
+
+CONF_DIR = 'autograde'
+CONF_SUBDIR_DOCS = 'docs'
+CONF_SUBDIR_TESTS = 'tests'
 
 SUBMISSION_CELL_FORMAT = """
 ##########################################################
@@ -40,10 +43,6 @@ REDIRECTION_CELL_FORMAT = """
 # Use {redirect_to} instead of this cell
 """.strip()
 
-AUTOGRADE_DIR = 'autograde'
-DOCS_SUBDIR = 'docs'
-TESTS_SUBDIR = 'tests'
-
 class FieldKey(enum.Enum):
     WARNING = enum.auto()
     CONTENT = enum.auto()
@@ -51,8 +50,8 @@ class FieldKey(enum.Enum):
     EXPLANATION = enum.auto()
     ANSWER_EXAMPLES = enum.auto()
     STUDENT_TESTS = enum.auto()
-    SYSTEM_TEST_CASES_EXECUTE_CELL = enum.auto()
     SYSTEM_TEST_CASES = enum.auto()
+    SYSTEM_TEST_CASES_EXECUTE_CELL = enum.auto()
     SYSTEM_TEST_SETTING = enum.auto()
 
 class FieldProperty(enum.Flag):
@@ -101,7 +100,7 @@ class Exercise:
     answer_examples: List[Cell]          # List of (filename, content, original code cell)
     student_tests: List[Cell]            # List of cells
     system_test_cases: List[Tuple[str,str,Cell]] # List of (filename, content, original code cell)
-    system_test_setting: object          # From yaml in raw cell
+    system_test_setting: object          # JSON generated from Python code
 
     def submission_redirection(self):
         m = re.match(r'#[ \t]*redirect-to[ \t]*:[ \t]*(\S+?\.ipynb)', self.student_code_cell.source)
@@ -207,14 +206,14 @@ def load_exercise(dirpath, exercise_key):
 
     return Exercise(**exercise_kwargs)
 
-def cleanup_exercise(exercises: Iterable[Exercise]):
+def cleanup_exercise_masters(exercises: Iterable[Exercise], renew_version):
     for exercise in exercises:
         filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
         cells, metadata = ipynb_util.load_cells(filepath, True)
         cells_new = [Cell(cell_type, source.strip()).to_ipynb() for cell_type, source in ipynb_util.normalized_cells(cells)]
-        if commandline_options.renew_version:
+        if renew_version:
             logging.info(f'[INFO] Renew version of {exercise.key}')
-            if commandline_options.renew_version == hashlib.sha1:
+            if renew_version == hashlib.sha1:
                 exercise_definition = {
                     'content': [x.to_ipynb() for x in exercise.content],
                     'submission_cell': exercise.submission_cell().to_ipynb(),
@@ -224,12 +223,14 @@ def cleanup_exercise(exercises: Iterable[Exercise]):
                 m.update(json.dumps(exercise_definition).encode())
                 exercise.version = m.hexdigest()
             else:
-                assert isinstance(commandline_options.renew_version, str)
-                exercise.version = commandline_options.renew_version
+                assert isinstance(renew_version, str)
+                exercise.version = renew_version
             metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version)
         ipynb_util.save_as_notebook(filepath, cells_new, metadata)
 
-def create_notebook_cells(dirpath: str, is_answer: bool, exercises: Iterable[Exercise]):
+def bundle_exercises(exercises: List[Exercise], is_answer: bool):
+    dirpath = exercises[0].dirpath
+    assert all(dirpath == e.dirpath for e in exercises)
     try:
         raw_cells, _ = ipynb_util.load_cells(os.path.join(dirpath, INTRODCTION_FILE))
         cells = [Cell(t, s) for t, s in ipynb_util.normalized_cells(raw_cells)]
@@ -259,8 +260,8 @@ def summarize_testcases(exercise: Exercise):
     contents.pop()
     return Cell(CellType.CODE, '\n'.join(contents))
 
-def create_exercise_concrete(exercise: Exercise):
-    docs_dir, tests_dir = [os.path.join(AUTOGRADE_DIR, exercise.key, d) for d in (DOCS_SUBDIR, TESTS_SUBDIR)]
+def create_autograde_source(exercise: Exercise):
+    docs_dir, tests_dir = [os.path.join(CONF_DIR, exercise.key, d) for d in (CONF_SUBDIR_DOCS, CONF_SUBDIR_TESTS)]
     os.makedirs(docs_dir, exist_ok=True)
     os.makedirs(tests_dir, exist_ok=True)
 
@@ -284,38 +285,38 @@ def create_exercise_concrete(exercise: Exercise):
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(os.path.join(exercise.dirpath, path), dest)
 
-def create_system_settings(exercises: Iterable[Exercise]):
-    shutil.rmtree(AUTOGRADE_DIR, ignore_errors=True)
+def create_configuration_zip(exercises: Iterable[Exercise]):
+    shutil.rmtree(CONF_DIR, ignore_errors=True)
     for exercise in exercises:
-        logging.info(f'[INFO] creating system settings for `{exercise.key}` ...')
-        create_exercise_concrete(exercise)
+        logging.info(f'[INFO] Creating autograde source for `{exercise.key}` ...')
+        create_autograde_source(exercise)
 
-    for exercise_dir in os.listdir(AUTOGRADE_DIR):
-        with zipfile.ZipFile(os.path.join(AUTOGRADE_DIR, exercise_dir + '.zip'), 'w', zipfile.ZIP_DEFLATED) as zipf:
-            target_dir = os.path.join(AUTOGRADE_DIR, exercise_dir)
+    for exercise_dir in os.listdir(CONF_DIR):
+        with zipfile.ZipFile(os.path.join(CONF_DIR, exercise_dir + '.zip'), 'w', zipfile.ZIP_DEFLATED) as zipf:
+            target_dir = os.path.join(CONF_DIR, exercise_dir)
             for dirpath, _, files in os.walk(os.path.join(target_dir)):
                 arcdirpath = dirpath[len(os.path.join(target_dir, '')):]
                 for fname in files:
                     zipf.write(os.path.join(dirpath, fname), os.path.join(arcdirpath, fname))
 
-    logging.info(f'[INFO] creating system settings zip file `{AUTOGRADE_DIR}.zip` ...')
-    with zipfile.ZipFile(AUTOGRADE_DIR + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
+    logging.info(f'[INFO] Creating configuration zip `{CONF_DIR}.zip` ...')
+    with zipfile.ZipFile(CONF_DIR + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
         for exercise in exercises:
             zipf.write(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), exercise.key + '.ipynb')
-        for fname in os.listdir(AUTOGRADE_DIR):
+        for fname in os.listdir(CONF_DIR):
             if fname.endswith('.zip'):
-                zipf.write(os.path.join(AUTOGRADE_DIR, fname), fname)
+                zipf.write(os.path.join(CONF_DIR, fname), fname)
 
-def generate_artifacts(exercises: Iterable[Exercise]):
-    artifact_index = collections.defaultdict(list)
+def create_exercise_bundles(exercises: Iterable[Exercise]):
+    bundle_index = collections.defaultdict(list)
     for exercise in exercises:
-        artifact_index[exercise.dirpath].append(exercise)
-    for dirpath, exercises in artifact_index.items():
+        bundle_index[exercise.dirpath].append(exercise)
+    for dirpath, exercises in bundle_index.items():
         dirname = os.path.basename(dirpath)
         for is_answer in (False, True):
-            cells = [c.to_ipynb() for c in create_notebook_cells(dirpath, is_answer, exercises)]
+            cells = [c.to_ipynb() for c in bundle_exercises(exercises, is_answer)]
             if is_answer:
-                filepath = os.path.join(dirpath, f'{dirname}.ans.ipynb')
+                filepath = os.path.join(dirpath, f'ans_{dirname}.ipynb')
                 metadata = ipynb_metadata.COMMON_METADATA
             else:
                 filepath = os.path.join(dirpath, f'{dirname}.ipynb')
@@ -327,7 +328,7 @@ def generate_artifacts(exercises: Iterable[Exercise]):
             if redirect_to is None:
                 continue
             metadata = ipynb_metadata.submission_metadata({e.key: e.version}, True)
-            filepath = os.path.join(HOMEDIR, dirname, redirect_to)
+            filepath = os.path.join(e.dirpath, redirect_to)
             cells, _ = ipynb_util.load_cells(filepath, True)
             assert any(re.search(rf'<\[ {e.key} \]>', line)
                        for c in cells if c['cell_type'] == CellType.CODE.value for line in c['source']), \
@@ -336,47 +337,46 @@ def generate_artifacts(exercises: Iterable[Exercise]):
 
 def main():
     exercises = []
-    targets = commandline_options.targets if commandline_options.targets else [os.path.join(HOMEDIR, x) for x in os.listdir(HOMEDIR)]
+    targets = commandline_options.targets if commandline_options.targets else [os.path.join(HOMEDIR, x) for x in os.listdir(HOMEDIR) if not x.startswith('.')]
     target_dirs = [x if os.path.basename(x) else os.path.dirname(x) for x in targets if os.path.isdir(x)]
     for dirpath in sorted(target_dirs):
-        exercise_name_index = {}
+        existing_keys = {}
         dirname = os.path.basename(dirpath)
         for nb in sorted(os.listdir(dirpath)):
-            match = re.fullmatch(fr'({dirname}([-_].*))\.ipynb', nb)
-            if match is None or nb.endswith('.ans.ipynb'):
+            match = re.fullmatch(fr'({dirname}[-_].*)\.ipynb', nb)
+            if match is None:
                 continue
-            exercise_key, exercise_subkey = match.groups()
-            assert exercise_key not in exercise_name_index, \
-                f'[ERROR] Exercise master `{exercise_key}` conflicts with exercise `{exercise_name_index[exercise_key]}`.'
-            exercise_name_index[exercise_key] = os.path.join(dirpath, exercise_key)
-            logging.info(f'[INFO] Load {dirpath}/{nb}')
+            exercise_key = match.groups()[0]
+            assert exercise_key not in existing_keys, \
+                f'[ERROR] Exercise key conflicts between `{dirpath}/{nb}` and `{existing_keys[exercise_key]}`.'
+            existing_keys[exercise_key] = os.path.join(dirpath, nb)
             exercises.append(load_exercise(dirpath, exercise_key))
+            logging.info(f'[INFO] Loaded `{dirpath}/{nb}`')
 
     if commandline_options.dry_run:
         logging.info('[INFO] Dry run')
-        for exercise in exercises:
-            logging.info(f'[INFO]     - {exercise.key}.ipynb')
         return
 
-    logging.info('[INFO] Start to clean up master notebooks')
-    cleanup_exercise(exercises)
+    logging.info('[INFO] Cleaning up exercise masters...')
+    cleanup_exercise_masters(exercises, commandline_options.renew_version)
 
-    logging.info('[INFO] Start to generate notebooks')
-    generate_artifacts(exercises)
+    logging.info('[INFO] Creating exercise bundles...')
+    create_exercise_bundles(exercises)
 
-    if commandline_options.dump_setting_zip:
-        logging.info('[INFO] Start to generate judge system settings')
-        create_system_settings(exercises)
-
+    if commandline_options.configuration:
+        logging.info('[INFO] Creating configuration zip...')
+        create_configuration_zip(exercises)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
     parser.add_argument('-d', '--dry_run', action='store_true', help='Dry-run option')
-    parser.add_argument('-s', '--dump_setting_zip', action='store_true', help='Dump setting zip')
+    parser.add_argument('-c', '--configuration', action='store_true', help='Dump configuration zip')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-t', '--targets', nargs='*', default=None, help=f'Specify target directories (default: {HOMEDIR}/*)')
     commandline_options = parser.parse_args()
     if commandline_options.verbose:
         logging.getLogger().setLevel('DEBUG')
+    else:
+        logging.getLogger().setLevel('INFO')
     main()
