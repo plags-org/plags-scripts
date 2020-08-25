@@ -52,7 +52,8 @@ def raise_if_congruent(f, g):
 
 def testcase(score=1):
     class JudgeTestCase(unittest.TestCase):
-        score = 1
+        pass
+    JudgeTestCase.score = score
     return JudgeTestCase
 
 def _gen_testmethod_decorator(kind, testcase_cls):
