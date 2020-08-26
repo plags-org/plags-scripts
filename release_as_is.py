@@ -15,7 +15,7 @@ MASTERS_DIR = 'as-is_masters'
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-a', '--add', metavar='TARGET_DIR', help='Add masters to a target directory.')
+    parser.add_argument('-a', '--add', nargs='?', const=MASTERS_DIR, metavar='TARGET_DIR', help=f'Add masters to a target directory (default: {MASTERS_DIR}).')
     parser.add_argument('-d', '--deadline', metavar='DEADLINE_JSON', help='Specify a JSON file of deadline configuration.')
     parser.add_argument('-z', '--zip_masters', action='store_true', help='Create a zip archive of masters.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
