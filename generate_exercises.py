@@ -25,6 +25,7 @@ if (sys.version_info.major, sys.version_info.minor) < (3, 7):
 
 HOMEDIR = 'exercises'
 INTRODCTION_FILE = 'intro.ipynb'
+DEADLINE_FILE = 'deadline.json'
 
 CONF_DIR = 'autograde'
 CONF_SUBDIR_DOCS = 'docs'
@@ -211,6 +212,20 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], renew_version):
         filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
         cells, metadata = ipynb_util.load_cells(filepath, True)
         cells_new = [Cell(cell_type, source.strip()).to_ipynb() for cell_type, source in ipynb_util.normalized_cells(cells)]
+
+        if 'judge_master' not in metadata:
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version)
+
+        if commandline_options.deadline:
+            try:
+                with open(os.path.join(exercise.dirpath, DEADLINE_FILE), encoding='utf-8') as f:
+                    deadline = json.load(f)
+            except FileNotFoundError:
+                deadline = metadata['judge_master']['deadlines']
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, deadline)
+        else:
+            deadline = metadata['judge_master']['deadlines']
+
         if renew_version:
             logging.info(f'[INFO] Renew version of {exercise.key}')
             if renew_version == hashlib.sha1:
@@ -225,9 +240,8 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], renew_version):
             else:
                 assert isinstance(renew_version, str)
                 exercise.version = renew_version
-            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version)
-        elif 'judge_master' in metadata:
-            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version)
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, deadline)
+
         ipynb_util.save_as_notebook(filepath, cells_new, metadata)
 
 def bundle_exercises(exercises: List[Exercise], is_answer: bool):
@@ -355,10 +369,6 @@ def main():
             exercises.append(load_exercise(dirpath, exercise_key))
             logging.info(f'[INFO] Loaded `{dirpath}/{nb}`')
 
-    if commandline_options.dry_run:
-        logging.info('[INFO] Dry run')
-        return
-
     logging.info('[INFO] Cleaning up exercise masters...')
     cleanup_exercise_masters(exercises, commandline_options.renew_version)
 
@@ -372,7 +382,7 @@ def main():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
-    parser.add_argument('-d', '--dry_run', action='store_true', help='Dry-run option')
+    parser.add_argument('-d', '--deadline', action='store_true', help='Set deadlines to exercises')
     parser.add_argument('-c', '--configuration', action='store_true', help='Dump configuration zip')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-t', '--targets', nargs='*', default=None, metavar='TARGET', help=f'Specify target directories (default: {HOMEDIR}/*)')
