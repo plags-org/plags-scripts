@@ -83,7 +83,7 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 `exercises/ex1/ex1-1-find_nearest.ipynb` をコピーして，そこに書かれた指示に従って改変する．更に，次の点を踏まえて，ファイルやディレクトリの命名に留意すること．
 
 * `exercises/foo` というディレクトリは `exercises/foo/foo.ipynb` という form を作るためのディレクトリである．
-* `exercises/foo/foo[-_](.*).ipynb` の正規表現にマッチするファイルを `foo.ipynb` を作る source として扱われる．
+* `exercises/foo/foo[-_](.*).ipynb` の正規表現にマッチするファイルが `foo.ipynb` を作る source と見做される．
 * `foo.ipynb` 内での課題の順序は，source のファイル名の辞書順である．
 
 ### as-isの作り方
