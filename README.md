@@ -27,7 +27,7 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 
 提供するスクリプト：
 
-* `generate_exercises.py`: autograde sourceの為のスクリプト
+* `build_autograde.py`: autograde sourceの為のスクリプト
 * `release_as_is.py`: as-is sourceの為のスクリプト
 * `ipynb_{util,metadata}.py`: ↑2つが利用するライブラリ
 * `exercises/ex1/.judge/judge_util.py`: autogradeのテストコードの記述に使うライブラリ
@@ -47,7 +47,7 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 ## スクリプトの使い方
 
 ```sh
-./generate_exercises.py -c -n
+./build_autograde.py -c -n
 ```
 
 **効果**：
@@ -126,7 +126,7 @@ autogradeでもas-isでも，sourceの拡張子を除いたファイル名が，
 例えば，次のように `-d` オプションを与えると，
 
 ```sh
-./generate_exercises.py -d
+./build_autograde.py -d
 ```
 
 `exercises/ex1/deadline.json` を使って，`exercises/ex1/ex1-{1,2}-find_nearest.ipynb` のメタデータに締切を埋め込む．指定されない場合は，締切メタデータを変更しない．`-d` 指定されていても，
