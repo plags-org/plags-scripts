@@ -226,6 +226,8 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], renew_version):
                 assert isinstance(renew_version, str)
                 exercise.version = renew_version
             metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version)
+        elif 'judge_master' in metadata:
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version)
         ipynb_util.save_as_notebook(filepath, cells_new, metadata)
 
 def bundle_exercises(exercises: List[Exercise], is_answer: bool):
