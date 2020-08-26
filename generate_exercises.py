@@ -374,8 +374,8 @@ if __name__ == '__main__':
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
     parser.add_argument('-d', '--dry_run', action='store_true', help='Dry-run option')
     parser.add_argument('-c', '--configuration', action='store_true', help='Dump configuration zip')
-    parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
-    parser.add_argument('-t', '--targets', nargs='*', default=None, help=f'Specify target directories (default: {HOMEDIR}/*)')
+    parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
+    parser.add_argument('-t', '--targets', nargs='*', default=None, metavar='TARGET', help=f'Specify target directories (default: {HOMEDIR}/*)')
     commandline_options = parser.parse_args()
     if commandline_options.verbose:
         logging.getLogger().setLevel('DEBUG')
