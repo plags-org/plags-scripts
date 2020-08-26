@@ -34,7 +34,7 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 
 課題例：
 
-* `exercises/ex1/ex1-{1,2}-find_nearest.ipynb`: autograde sourceの具体例
+* `exercises/ex1/ex1-{1,2}-find_nearest.ipynb`: autograde source兼masterの具体例
 * `exercises/ex1/ex1.ipynb`: ↑2つを統合したautograde form
 * `exercises/ex1/intro.ipynb`: `ex1.ipynb` の導入部分（オプショナル）
 * `exercises_as-is/ex2.ipynb`: as-is source兼formの具体例
@@ -52,13 +52,13 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 
 **効果**：
 
+* `exercises/ex1/ex1-{1,2}-find_nearest.ipynb` からOutputを除去し，master用メタデータを設定
 * `exercises/ex1/ex1.ipynb` の作成
 * `exercises/ex1/ans_ex1.ipynb` の作成
-* `exercises/ex1/ex1-{1,2}-find_nearest.ipynb` におけるOutputの除去
 * `autograde.zip` の作成（`-c`）
 * `exercises/ex1/ex1-{1,2}-find_nearest.ipynb` のバージョン更新（`-n`）
 
-`-n` に引数を与えた場合は，その引数（文字列）がバージョンとして設定される．上の例の様に無引数の場合は，それぞれの課題内容（formに統合される内容）から計算したSHA1ハッシュがバージョンとして設定される．バージョン設定の際には，メタデータはmaster用にリセットされる．`-n` 指定の有無にかかわらず，master用メタデータを持っていないときは，バージョンには空文字列が設定される．
+`-n` に引数を与えた場合は，その引数（文字列）がバージョンとして設定される．上の例の様に無引数の場合は，それぞれの課題内容（formに統合される内容）から計算したSHA1ハッシュがバージョンとして設定される．`-n` が指定されない場合は，バージョンを変更しない．`-n` 指定の有無にかかわらず，master用メタデータを持っていないときは，バージョンには空文字列が設定される．
 
 `ans_ex1.ipynb` は，`ex1.ipynb`の解答例・解説・テストケースをまとめたものである．教員が授業中に表示させたり，TAに配布したりすることを想定している．
 
@@ -70,11 +70,11 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 
 **効果**：
 
-* `exercises/*.ipynb` をformとして設定
+* `exercises/*.ipynb` にform用メタデータを設定
 * `as-is_masters/*.ipynb` の作成
 * `as-is_masters.zip` の作成（`-z`）
 
-`as-is_masters.zip` は `as-is_masters/*.ipynb` を単にまとめただけである．システムに対して，`as-is_masters/*.ipynb` を個別にアップロードすることもできる．
+`as-is_masters.zip` は，master用メタデータが設定された `as-is_masters/*.ipynb` を単にまとめただけである．システムに対して，`as-is_masters/*.ipynb` を個別にアップロードすることもできる．
 
 ## 課題の作り方
 
