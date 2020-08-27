@@ -207,7 +207,7 @@ def load_exercise(dirpath, exercise_key):
 
     return Exercise(**exercise_kwargs)
 
-def cleanup_exercise_masters(exercises: Iterable[Exercise], renew_version):
+def cleanup_exercise_masters(exercises: Iterable[Exercise], commandline_options):
     for exercise in exercises:
         filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
         cells, metadata = ipynb_util.load_cells(filepath, True)
@@ -226,9 +226,9 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], renew_version):
         else:
             deadline = metadata['judge_master']['deadlines']
 
-        if renew_version:
+        if commandline_options.renew_version:
             logging.info(f'[INFO] Renew version of {exercise.key}')
-            if renew_version == hashlib.sha1:
+            if commandline_options.renew_version == hashlib.sha1:
                 exercise_definition = {
                     'content': [x.to_ipynb() for x in exercise.content],
                     'submission_cell': exercise.submission_cell().to_ipynb(),
@@ -238,8 +238,8 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], renew_version):
                 m.update(json.dumps(exercise_definition).encode())
                 exercise.version = m.hexdigest()
             else:
-                assert isinstance(renew_version, str)
-                exercise.version = renew_version
+                assert isinstance(commandline_options.renew_version, str)
+                exercise.version = commandline_options.renew_version
             metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, deadline)
 
         ipynb_util.save_as_notebook(filepath, cells_new, metadata)
@@ -352,6 +352,18 @@ def create_exercise_bundles(exercises: Iterable[Exercise]):
             ipynb_util.save_as_notebook(filepath, cells, metadata)
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
+    parser.add_argument('-d', '--deadline', action='store_true', help='Set deadlines to exercises')
+    parser.add_argument('-c', '--configuration', action='store_true', help='Dump configuration zip')
+    parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
+    parser.add_argument('-t', '--targets', nargs='*', default=None, metavar='TARGET', help=f'Specify target directories (default: {HOMEDIR}/*)')
+    commandline_options = parser.parse_args()
+    if commandline_options.verbose:
+        logging.getLogger().setLevel('DEBUG')
+    else:
+        logging.getLogger().setLevel('INFO')
+
     exercises = []
     targets = commandline_options.targets if commandline_options.targets else [os.path.join(HOMEDIR, x) for x in os.listdir(HOMEDIR) if not x.startswith('.')]
     target_dirs = [x if os.path.basename(x) else os.path.dirname(x) for x in targets if os.path.isdir(x)]
@@ -370,7 +382,7 @@ def main():
             logging.info(f'[INFO] Loaded `{dirpath}/{nb}`')
 
     logging.info('[INFO] Cleaning up exercise masters...')
-    cleanup_exercise_masters(exercises, commandline_options.renew_version)
+    cleanup_exercise_masters(exercises, commandline_options)
 
     logging.info('[INFO] Creating exercise bundles...')
     create_exercise_bundles(exercises)
@@ -380,15 +392,4 @@ def main():
         create_configuration_zip(exercises)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
-    parser.add_argument('-d', '--deadline', action='store_true', help='Set deadlines to exercises')
-    parser.add_argument('-c', '--configuration', action='store_true', help='Dump configuration zip')
-    parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
-    parser.add_argument('-t', '--targets', nargs='*', default=None, metavar='TARGET', help=f'Specify target directories (default: {HOMEDIR}/*)')
-    commandline_options = parser.parse_args()
-    if commandline_options.verbose:
-        logging.getLogger().setLevel('DEBUG')
-    else:
-        logging.getLogger().setLevel('INFO')
     main()
