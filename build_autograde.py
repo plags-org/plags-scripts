@@ -167,7 +167,6 @@ def split_cells(raw_cells: Iterable[dict]):
 
 def load_exercise(dirpath, exercise_key):
     raw_cells, metadata = ipynb_util.load_cells(os.path.join(dirpath, exercise_key + '.ipynb'))
-    dirname = os.path.basename(dirpath)
     version = metadata.get('judge_master', {}).get('version', '')
     exercise_kwargs = {'key': exercise_key, 'dirpath': dirpath, 'version': version}
     for field_key, cells in split_cells(raw_cells).items():
