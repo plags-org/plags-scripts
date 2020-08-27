@@ -31,6 +31,7 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 * `release_as_is.py`: as-is sourceの為のスクリプト
 * `ipynb_{util,metadata}.py`: ↑2つが利用するライブラリ
 * `exercises/ex1/.judge/judge_util.py`: autogradeのテストコードの記述に使うライブラリ
+* `judge_setting.py`: autogradeのテスト設定の記述に使うライブラリ
 
 課題例：
 

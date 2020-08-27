@@ -17,7 +17,7 @@ import logging
 
 import ipynb_metadata
 import ipynb_util
-
+import judge_setting
 
 if (sys.version_info.major, sys.version_info.minor) < (3, 7):
     print('[ERROR] This script requires Python >= 3.7.')
@@ -130,12 +130,8 @@ def split_file_code_cell(cell: Cell):
     return (match[1], ''.join(lines[1:]).strip() + '\n', cell)
 
 def load_system_test_setting(cells: List[Cell]):
-    out = io.StringIO()
-    def print_redirected(*args,**kwdargs):
-        kwdargs['file'] = out
-        print(*args, **kwdargs)
-    exec(cells[0].source, {'print': print_redirected})
-    return json.loads(out.getvalue())  #TODO: schema validation
+    exec(cells[0].source, {'generate_system_test_setting': judge_setting.generate_system_test_setting})
+    return judge_setting.output #TODO: schema validation
 
 def split_cells(raw_cells: Iterable[dict]):
     CONTENT_TYPE_REGEX = r'\*\*\*CONTENT_TYPE:\s*(.+?)\*\*\*'
