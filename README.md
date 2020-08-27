@@ -117,7 +117,7 @@ autogradeでもas-isでも，sourceの拡張子を除いたファイル名が，
 
 ここで，`YYYY-MM-DD`は西暦の日付，`hh:mm:ss`は24時間表記の時刻である．
 
-属性名 `"begins_at"`・`"opens_at"`・`"checks_at"`・`"closes_at"`・`"ends_at"` は，それぞれブラウザ上の `begin`（公開開始）・`open`（投稿開始）・`check`（締切）・`close`（投稿終了）・`end`（公開終了）に対応する．
+属性名 `"begins_at"`・`"opens_at"`・`"checks_at"`・`"closes_at"`・`"ends_at"` は，それぞれブラウザ上の begin（公開開始）・open（投稿開始）・check（締切）・close（投稿終了）・end（公開終了）に対応する．
 
 属性値は `null` も可能である．`null`の項目は，システムのCourse設定から自動的に計算される．属性値が `null` の項目は，省略できる．
 
