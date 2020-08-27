@@ -303,21 +303,14 @@ def create_configuration_zip(exercises: Iterable[Exercise]):
         logging.info(f'[INFO] Creating autograde source for `{exercise.key}` ...')
         create_autograde_source(exercise)
 
-    for exercise_dir in os.listdir(CONF_DIR):
-        with zipfile.ZipFile(os.path.join(CONF_DIR, exercise_dir + '.zip'), 'w', zipfile.ZIP_DEFLATED) as zipf:
-            target_dir = os.path.join(CONF_DIR, exercise_dir)
-            for dirpath, _, files in os.walk(os.path.join(target_dir)):
-                arcdirpath = dirpath[len(os.path.join(target_dir, '')):]
-                for fname in files:
-                    zipf.write(os.path.join(dirpath, fname), os.path.join(arcdirpath, fname))
-
     logging.info(f'[INFO] Creating configuration zip `{CONF_DIR}.zip` ...')
     with zipfile.ZipFile(CONF_DIR + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
         for exercise in exercises:
             zipf.write(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), exercise.key + '.ipynb')
-        for fname in os.listdir(CONF_DIR):
-            if fname.endswith('.zip'):
-                zipf.write(os.path.join(CONF_DIR, fname), fname)
+            for dirpath, _, files in os.walk(os.path.join(CONF_DIR, exercise.key)):
+                arcdirpath = dirpath[len(os.path.join(CONF_DIR, '')):]
+                for fname in files:
+                    zipf.write(os.path.join(dirpath, fname), os.path.join(arcdirpath, fname))
 
 def create_exercise_bundles(exercises: Iterable[Exercise]):
     bundle_index = collections.defaultdict(list)
