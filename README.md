@@ -63,7 +63,7 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 'judge_util.py' -> 'exercises_separate/.judge/judge_util.py'
 ```
 
-### autogradeのビルド（spearateモード）
+### autogradeのビルド（separateモード）
 
 autograde sourceに対して個別にformを作るseparteモードの例．
 
