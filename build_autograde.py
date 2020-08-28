@@ -14,6 +14,7 @@ import io
 import json
 import hashlib
 import logging
+import itertools
 
 import ipynb_metadata
 import ipynb_util
@@ -339,9 +340,39 @@ def create_exercise_bundles(exercises: Iterable[Exercise]):
                 f'{redirect_to} has no answer cell for {e.key}.'
             ipynb_util.save_as_notebook(filepath, cells, metadata)
 
+def create_single_forms(exercises: Iterable[Exercise]):
+    for ex in exercises:
+        # Create answer
+        cells = itertools.chain(ex.content, ex.answer_examples, [summarize_testcases(ex)], ex.explanation)
+        filepath = os.path.join(ex.dirpath, f'ans_{ex.key}.ipynb')
+        metadata = ipynb_metadata.COMMON_METADATA
+        ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in cells], metadata)
+
+        # Create form
+        cells = itertools.chain(ex.content, [ex.submission_cell()], ex.student_tests)
+        redirect_to = ex.submission_redirection()
+        if redirect_to is None:
+            filepath = os.path.join(ex.dirpath, f'form_{ex.key}.ipynb')
+            metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version}, True)
+        else:
+            filepath = os.path.join(ex.dirpath, f'pseudo-form_{ex.key}.ipynb')
+            metadata = ipynb_metadata.COMMON_METADATA
+        ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in cells], metadata)
+
+        if redirect_to is not None:
+            # Create redirected form
+            filepath = os.path.join(ex.dirpath, redirect_to)
+            cells, _ = ipynb_util.load_cells(filepath, True)
+            assert any(re.search(rf'<\[ {ex.key} \]>', line)
+                       for c in cells if c['cell_type'] == CellType.CODE.value for line in c['source']), \
+                f'{redirect_to} has no answer cell for {ex.key}.'
+            metadata = ipynb_metadata.submission_metadata({ex.key: ex.version}, True)
+            ipynb_util.save_as_notebook(filepath, cells, metadata)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
+    parser.add_argument('-b', '--bundle', action='store_true', help='Bundle mode option')
     parser.add_argument('-d', '--deadline', action='store_true', help='Set deadlines to exercises')
     parser.add_argument('-c', '--configuration', action='store_true', help='Dump configuration zip')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
@@ -354,26 +385,43 @@ def main():
 
     exercises = []
     targets = commandline_options.targets if commandline_options.targets else [os.path.join(HOMEDIR, x) for x in os.listdir(HOMEDIR) if not x.startswith('.')]
-    target_dirs = [x if os.path.basename(x) else os.path.dirname(x) for x in targets if os.path.isdir(x)]
-    for dirpath in sorted(target_dirs):
-        existing_keys = {}
-        dirname = os.path.basename(dirpath)
-        for nb in sorted(os.listdir(dirpath)):
-            match = re.fullmatch(fr'({dirname}[-_].*)\.ipynb', nb)
-            if match is None:
+    existing_keys = {}
+    if commandline_options.bundle:
+        target_dirs = [x if os.path.basename(x) else os.path.dirname(x) for x in targets if os.path.isdir(x)]
+        for dirpath in sorted(target_dirs):
+            dirname = os.path.basename(dirpath)
+            for nb in sorted(os.listdir(dirpath)):
+                match = re.fullmatch(fr'({dirname}[-_].*)\.ipynb', nb)
+                if match is None:
+                    continue
+                exercise_key = match.groups()[0]
+                assert exercise_key not in existing_keys, \
+                    f'[ERROR] Exercise key conflicts between `{dirpath}/{nb}` and `{existing_keys[exercise_key]}`.'
+                existing_keys[exercise_key] = os.path.join(dirpath, nb)
+                exercises.append(load_exercise(dirpath, exercise_key))
+                logging.info(f'[INFO] Loaded `{dirpath}/{nb}`')
+    else:
+        for filepath in sorted(targets):
+            if not filepath.endswith('.ipynb'):
+                logging.info(f'[INFO] Skip {filename}')
                 continue
-            exercise_key = match.groups()[0]
+            dirpath, filename = os.path.split(filepath)
+            exercise_key, _ = os.path.splitext(filename)
             assert exercise_key not in existing_keys, \
-                f'[ERROR] Exercise key conflicts between `{dirpath}/{nb}` and `{existing_keys[exercise_key]}`.'
-            existing_keys[exercise_key] = os.path.join(dirpath, nb)
+                f'[ERROR] Exercise key conflicts between `{filepath}` and `{existing_keys[exercise_key]}`.'
+            existing_keys[exercise_key] = filepath
             exercises.append(load_exercise(dirpath, exercise_key))
-            logging.info(f'[INFO] Loaded `{dirpath}/{nb}`')
+            logging.info(f'[INFO] Loaded `{filepath}`')
 
     logging.info('[INFO] Cleaning up exercise masters...')
     cleanup_exercise_masters(exercises, commandline_options)
 
-    logging.info('[INFO] Creating exercise bundles...')
-    create_exercise_bundles(exercises)
+    if commandline_options.bundle:
+        logging.info('[INFO] Creating bundled forms...')
+        create_exercise_bundles(exercises)
+    else:
+        logging.info('[INFO] Creating separate forms...')
+        create_single_forms(exercises)
 
     if commandline_options.configuration:
         logging.info('[INFO] Creating configuration zip...')
