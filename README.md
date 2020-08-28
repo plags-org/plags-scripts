@@ -173,6 +173,7 @@ autogradeでもas-isでも，sourceの拡張子を除いたファイル名が，
 ```sh
 ./build_autograde.py -d -t exercises_separate/ex1-{1,2}-find_nearest.ipynb
 ```
+
 `exercises_separate/deadline.json` を使って，`exercises_separate/ex1-{1,2}-find_nearest.ipynb` のメタデータに締切を埋め込む．`-d` が指定されない場合は，締切メタデータを変更しない．`-d` 指定されていても，`exercises_separate/deadline.json` が無かった場合には，`exercises_separate/ex1-{1,2}-find_nearest.ipynb` に対する `-d` 指定は無効になる．そして，`-d` 指定の有無にかかわらず，master用メタデータを持っていなかった場合は，全ての締切項目が `null` と設定される．
 
 bundleモードの場合，

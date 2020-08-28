@@ -24,7 +24,6 @@ if (sys.version_info.major, sys.version_info.minor) < (3, 7):
     print('[ERROR] This script requires Python >= 3.7.')
     sys.exit(1)
 
-HOMEDIR = 'exercises'
 INTRODCTION_FILE = 'intro.ipynb'
 DEADLINE_FILE = 'deadline.json'
 
@@ -376,7 +375,7 @@ def main():
     parser.add_argument('-d', '--deadline', action='store_true', help='Set deadlines to exercises')
     parser.add_argument('-c', '--configuration', action='store_true', help='Dump configuration zip')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
-    parser.add_argument('-t', '--targets', nargs='*', default=None, metavar='TARGET', help=f'Specify target directories (default: {HOMEDIR}/*)')
+    parser.add_argument('-t', '--targets', nargs='*', required=True, metavar='TARGET', help=f'Specify targets (ipynb files in separate mode and directories in bundle mode)')
     commandline_options = parser.parse_args()
     if commandline_options.verbose:
         logging.getLogger().setLevel('DEBUG')
@@ -384,11 +383,12 @@ def main():
         logging.getLogger().setLevel('INFO')
 
     exercises = []
-    targets = commandline_options.targets if commandline_options.targets else [os.path.join(HOMEDIR, x) for x in os.listdir(HOMEDIR) if not x.startswith('.')]
     existing_keys = {}
     if commandline_options.bundle:
-        target_dirs = [x if os.path.basename(x) else os.path.dirname(x) for x in targets if os.path.isdir(x)]
-        for dirpath in sorted(target_dirs):
+        for dirpath in sorted(commandline_options.targets):
+            if not os.path.isdir(dirpath):
+                logging.info(f'[INFO] Skip {dirpath}')
+                continue
             dirname = os.path.basename(dirpath)
             for nb in sorted(os.listdir(dirpath)):
                 match = re.fullmatch(fr'({dirname}[-_].*)\.ipynb', nb)
@@ -401,9 +401,9 @@ def main():
                 exercises.append(load_exercise(dirpath, exercise_key))
                 logging.info(f'[INFO] Loaded `{dirpath}/{nb}`')
     else:
-        for filepath in sorted(targets):
+        for filepath in sorted(commandline_options.targets):
             if not filepath.endswith('.ipynb'):
-                logging.info(f'[INFO] Skip {filename}')
+                logging.info(f'[INFO] Skip {filepath}')
                 continue
             dirpath, filename = os.path.split(filepath)
             exercise_key, _ = os.path.splitext(filename)
