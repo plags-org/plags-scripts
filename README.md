@@ -51,7 +51,7 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 ### ビルド準備
 
 ```sh
-./deploy_judge_util.py
+./deploy_judge_util.sh
 ```
 
 **効果**:
@@ -65,7 +65,7 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 
 ### autogradeのビルド（separateモード）
 
-autograde sourceに対して個別にformを作るseparteモードの例．
+autograde sourceに対して個別にformを作るseparateモードの例．
 
 ```sh
 ./build_autograde.py -c -n -t exercises_separate/ex1-{1,2}-find_nearest.ipynb
