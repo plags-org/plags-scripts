@@ -25,7 +25,7 @@ if (sys.version_info.major, sys.version_info.minor) < (3, 7):
     print('[ERROR] This script requires Python >= 3.7.')
     sys.exit(1)
 
-INTRODCTION_FILE = 'intro.ipynb'
+INTRODUCTION_FILE = 'intro.ipynb'
 DEADLINE_FILE = 'deadline.json'
 
 CONF_DIR = 'autograde'
@@ -244,7 +244,7 @@ def bundle_exercises(exercises: List[Exercise], is_answer: bool):
     dirpath = exercises[0].dirpath
     assert all(dirpath == e.dirpath for e in exercises)
     try:
-        raw_cells, _ = ipynb_util.load_cells(os.path.join(dirpath, INTRODCTION_FILE))
+        raw_cells, _ = ipynb_util.load_cells(os.path.join(dirpath, INTRODUCTION_FILE))
         cells = [Cell(t, s) for t, s in ipynb_util.normalized_cells(raw_cells)]
     except FileNotFoundError:
         cells = [Cell(CellType.MARKDOWN, f'# {os.path.basename(dirpath)}')]
