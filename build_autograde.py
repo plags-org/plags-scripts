@@ -12,7 +12,6 @@ import collections
 import copy
 from typing import List, Iterable, Tuple
 
-import io
 import json
 import hashlib
 import logging
