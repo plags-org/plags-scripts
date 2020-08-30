@@ -261,13 +261,9 @@ def bundle_exercises(exercises: List[Exercise], is_answer: bool):
 
 def summarize_testcases(exercise: Exercise):
     contents = []
-    decorator_prefix = '@judge_util.'
+    is_not_decorator_line = lambda x: not x.startswith('@judge_util.')
     for _, src, _ in exercise.system_test_cases:
-        lines = iter(src.splitlines())
-        for x in lines:
-            if x.startswith(decorator_prefix):
-                break
-        contents.extend(x for x in lines if not x.startswith(decorator_prefix))
+        contents.extend(filter(is_not_decorator_line, itertools.dropwhile(is_not_decorator_line, src.splitlines())))
         contents.append('')
     contents.pop()
     return Cell(CellType.CODE, '\n'.join(contents))
