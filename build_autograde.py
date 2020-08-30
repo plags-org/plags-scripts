@@ -260,7 +260,7 @@ def bundle_exercises(exercises: List[Exercise], is_answer: bool):
     return cells
 
 def summarize_testcases(exercise: Exercise):
-    contents = []
+    contents: List[str] = []
     decorator_prefix = '@judge_util.'
     for _, src, _ in exercise.system_test_cases:
         lines = iter(src.splitlines())
