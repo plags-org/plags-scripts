@@ -123,7 +123,7 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `ex
 
 ### autogradeの作り方
 
-separateモードを使うなら`exercises_separate/ex1-1-find_nearest.ipynb`をコピーして，bundleモードを使うなら`exercises_bundled/ex1-1-find_nearest.ipynb`をコピーして，そこに書かれた指示に従って改変する．
+separateモードを使うなら`exercises_separate/ex1-1-find_nearest.ipynb`をコピーして，bundleモードを使うなら`exercises_bundled/ex1/ex1-1-find_nearest.ipynb`をコピーして，そこに書かれた指示に従って改変する．
 
 ただし，bundleモードを利用する際には，次の点を踏まえて，ファイルやディレクトリの命名に留意すること．
 
