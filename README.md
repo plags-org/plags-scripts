@@ -32,7 +32,7 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 * `ipynb_{util,metadata}.py`: ↑2つが利用するライブラリ
 * `judge_util.py`: autogradeのテストコードの記述に使うライブラリ
 * `judge_setting.py`: autogradeのテスト設定の記述に使うライブラリ
-* `deploy_judge_util.sh`: `judge_util.py`を所定の場所に設置するスクリプト（課題例用）
+* `install_judge_util.sh`: `judge_util.py`のインストール用スクリプト
 
 課題例：
 
@@ -48,24 +48,15 @@ autogradeとas-isでは，source/master/formの書式も異なり，スクリプ
 
 ## スクリプトの使い方
 
-### ビルド準備
-
-```sh
-./deploy_judge_util.sh
-```
-
-**効果**:
-
-`judge_util.py` を所定のディレクトリに設置する．
-
-```sh
-'judge_util.py' -> 'exercises_bundled/ex1/.judge/judge_util.py'
-'judge_util.py' -> 'exercises_separate/.judge/judge_util.py'
-```
-
 ### autogradeのビルド（separateモード）
 
-autograde sourceに対して個別にformを作るseparateモードの例．
+準備として，`judge_util.py` を所定のディレクトリにインストールする．
+
+```sh
+./install_judge_util.sh exercises_separate
+```
+
+autograde sourceに対して個別にformを作るseparateモードでビルドする例．
 
 ```sh
 ./build_autograde.py -c -n -t exercises_separate/ex1-{1,2}-find_nearest.ipynb
@@ -87,7 +78,13 @@ autograde sourceに対して個別にformを作るseparateモードの例．
 
 ### autogradeのビルド（bundleモード）
 
-複数のsourceを束ねたformを作るbundleモード（`-b`）の例．
+準備として，`judge_util.py` を所定のディレクトリにインストールする．
+
+```sh
+./install_judge_util.sh exercises_bundled/*
+```
+
+複数のsourceを束ねたformを作るbundleモード（`-b`）でビルドする例．
 
 ```sh
 ./build_autograde.py -c -n -b -t exercises_bundled/*
