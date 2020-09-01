@@ -5,10 +5,6 @@ from typing import List
 
 from ipynb_metadata import COMMON_METADATA
 
-if (sys.version_info.major, sys.version_info.minor) < (3, 7):
-    print('[ERROR] This script requires Python >= 3.7.')
-    sys.exit(1)
-
 class NotebookCellType(enum.Enum):
     RAW = 'raw'
     CODE = 'code'
