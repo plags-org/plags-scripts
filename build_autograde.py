@@ -276,12 +276,8 @@ def create_autograde_source(exercise: Exercise):
     os.makedirs(docs_dir, exist_ok=True)
     os.makedirs(tests_dir, exist_ok=True)
 
-    content_md = ({CellType.MARKDOWN: lambda x: x,
-                   CellType.CODE: lambda x: f'---\n\n```python\n{x.strip()}\n```\n\n---'}[c.cell_type](c.source)
-                  for c in exercise.content if c.cell_type != CellType.RAW)
-    with open(os.path.join(docs_dir, 'ja.md'), 'w', encoding='utf-8', newline='\n') as f:
-        f.write('\n\n'.join(content_md))
-
+    cells = [x.to_ipynb() for x in exercise.content]
+    ipynb_util.save_as_notebook(os.path.join(docs_dir, 'ja.ipynb'), cells, ipynb_metadata.COMMON_METADATA)
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
         json.dump(exercise.generate_setting(), f, indent=1, ensure_ascii=False)
     for name, content, _ in exercise.system_test_cases:
