@@ -15,7 +15,9 @@ def submission_metadata(key_to_version, extraction: bool):
         **COMMON_METADATA,
     }
 
-def master_metadata(exercise_key: str, autograde: bool, version: str, deadlines = None):
+def master_metadata(exercise_key: str, autograde: bool, version: str, title=None, deadlines=None):
+    if title is None:
+        title = exercise_key
     if deadlines is None:
         deadlines = {}
     deadlines = {k: deadlines.get(k) for k in ('begins_at', 'opens_at', 'checks_at', 'closes_at', 'ends_at')}
@@ -24,6 +26,7 @@ def master_metadata(exercise_key: str, autograde: bool, version: str, deadlines 
             'autograde': autograde,
             'deadlines': deadlines,
             'exercise_key': exercise_key,
+            'title': title,
             'version': version,
         },
         **COMMON_METADATA,

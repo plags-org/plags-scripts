@@ -96,6 +96,7 @@ class Exercise:
     key: str        # Key string
     dirpath: str    # Directory path
     version: str    # Version string
+    title: str      # Title string
     content: List[Cell]                  # The description of exercise, starts with multiple '#'s
     student_code_cell: Cell              # Code cell
     explanation: List[Cell]              # The explanation of exercise, starts with multiple '#'s
@@ -192,8 +193,10 @@ def load_exercise(dirpath, exercise_key):
             assert cells[0].cell_type == CellType.MARKDOWN
             first_line_regex = r'#+\s+(.*)'
             first_line = cells[0].source.strip().splitlines()[0]
-            assert re.fullmatch(first_line_regex, first_line) is not None, \
-                f'The first content cell does not start with a heading in Markdown: `{first_line}`.'
+            m = re.fullmatch(first_line_regex, first_line)
+            assert m is not None, f'The first content cell does not start with a heading in Markdown: `{first_line}`.'
+            if field_key == FieldKey.CONTENT:
+                exercise_kwargs['title'] = m.groups()[0]
 
         exercise_kwargs[field_key.name.lower()] = {
             FieldKey.SYSTEM_TEST_SETTING: lambda: load_system_test_setting(cells),
@@ -210,7 +213,7 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], commandline_options)
         cells_new = [Cell(cell_type, source.strip()).to_ipynb() for cell_type, source in ipynb_util.normalized_cells(cells)]
 
         if 'judge_master' not in metadata:
-            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version)
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title)
 
         if commandline_options.deadline:
             try:
@@ -218,7 +221,7 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], commandline_options)
                     deadline = json.load(f)
             except FileNotFoundError:
                 deadline = metadata['judge_master']['deadlines']
-            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, deadline)
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadline)
         else:
             deadline = metadata['judge_master']['deadlines']
 
@@ -236,7 +239,7 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], commandline_options)
             else:
                 assert isinstance(commandline_options.renew_version, str)
                 exercise.version = commandline_options.renew_version
-            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, deadline)
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadline)
 
         ipynb_util.save_as_notebook(filepath, cells_new, metadata)
 

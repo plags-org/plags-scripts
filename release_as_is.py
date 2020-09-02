@@ -7,6 +7,7 @@ import zipfile
 import json
 import hashlib
 import logging
+import re
 
 import ipynb_metadata
 import ipynb_util
@@ -46,7 +47,8 @@ def main():
         else:
             version = metadata.get('judge_master', {}).get('version', '')
 
-        metadata = ipynb_metadata.master_metadata(key, False, version, deadline)
+        title = extract_first_heading(cells)
+        metadata = ipynb_metadata.master_metadata(key, False, version, title, deadline)
         ipynb_util.save_as_notebook(filepath, cells, metadata)
         logging.info(f'[INFO] Released {filepath}')
         masters[key] = (cells, version, filepath)
@@ -62,6 +64,14 @@ def main():
     for key, (cells, version, filepath) in masters.items():
         metadata = ipynb_metadata.submission_metadata({key: version}, False)
         ipynb_util.save_as_notebook(os.path.join(os.path.dirname(filepath), f'form_{key}.ipynb'), cells, metadata)
+
+def extract_first_heading(cells):
+    for cell_type, source in ipynb_util.normalized_cells(cells):
+        if cell_type == ipynb_util.NotebookCellType.MARKDOWN:
+            m = re.search(r'^#+\s+(.*)$', source, re.MULTILINE)
+            if m:
+                return m.groups()[0]
+    return None
 
 if __name__ == '__main__':
     logging.getLogger().setLevel('INFO')
