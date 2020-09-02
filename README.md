@@ -51,16 +51,15 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 autograde masterに対して個別にformを作るseparateモードでビルドする例．
 
 ```sh
-./build_autograde.py -c -n -t exercises_separate/ex1-{1,2}-find_nearest.ipynb
+./build_autograde.py -c -t exercises_separate/ex1-{1,2}-find_nearest.ipynb
 ```
 
 **効果**：
 
 * `exercises_separate/ex1-{1,2}-find_nearest.ipynb` から出力部分を除去し，master用メタデータを設定
 * `exercises_separate/form_ex1-{1,2}-find_nearest.ipynb` の作成
-* `exercises_bundled/ex1/ans_ex1-{1,2}-find_nearest.ipynb` の作成
+* `exercises_separate/ans_ex1-{1,2}-find_nearest.ipynb` の作成
 * `autograde.zip` の作成（`-c`）
-* `exercises_bundled/ex1/ex1-{1,2}-find_nearest.ipynb` のバージョン更新（`-n`）
 
 `form_${exercise}.ipynb`は，`${exercise}.ipynb`のformであり，`ans_${exercise}.ipynb`は，解答例・解説・テストケースをまとめたもの（answer）である．answerは，教員が授業中に表示させたり，TAに配布したりすることを想定している．
 
@@ -147,7 +146,7 @@ masterとformのメタデータには，課題のバージョンが埋め込ま�
 `build_autograde.py` 及び `release_as_is.py` を実行する際に，`-n` オプションを与えると，masterのバージョンを更新し，新しいバージョンに対応したformを生成する．具体的には，次の規則に従う．
 
 * `-n` が引数付きで指定されたときは，その引数（文字列）がバージョンとして設定される．
-* `-n` が無引無しで指定されたときは，課題内容（formに統合される内容）から計算したSHA1ハッシュがバージョンとして設定される．
+* `-n` が引数無しで指定されたときは，課題内容（formに統合される内容）から計算したSHA1ハッシュがバージョンとして設定される．
 * `-n` が指定されない場合は，バージョンを保つ．
 * `-n` が指定されず，master用メタデータがない（バージョンを持っていない）場合は，空文字列がバージョンとして設定される．
 
