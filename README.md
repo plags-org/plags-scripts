@@ -56,13 +56,13 @@ autograde masterに対して個別にformを作るseparateモードでビルド�
 
 **効果**：
 
-* `exercises_separate/ex1-{1,2}-find_nearest.ipynb` からOutputを除去し，master用メタデータを設定
+* `exercises_separate/ex1-{1,2}-find_nearest.ipynb` から出力部分を除去し，master用メタデータを設定
 * `exercises_separate/form_ex1-{1,2}-find_nearest.ipynb` の作成
 * `exercises_bundled/ex1/ans_ex1-{1,2}-find_nearest.ipynb` の作成
 * `autograde.zip` の作成（`-c`）
 * `exercises_bundled/ex1/ex1-{1,2}-find_nearest.ipynb` のバージョン更新（`-n`）
 
-`form_${exercise}.ipynb`は，`${exercise}.ipynb`のformであり，`ans_${exercise}.ipynb`は，解答例・解説・テストケースをまとめたanwserである．answerは，教員が授業中に表示させたり，TAに配布したりすることを想定している．
+`form_${exercise}.ipynb`は，`${exercise}.ipynb`のformであり，`ans_${exercise}.ipynb`は，解答例・解説・テストケースをまとめたもの（answer）である．answerは，教員が授業中に表示させたり，TAに配布したりすることを想定している．
 
 `-n` に引数を与えた場合は，その引数（文字列）がバージョンとして設定される．上の例の様に無引数の場合は，それぞれの課題内容（formに統合される内容）から計算したSHA1ハッシュがバージョンとして設定される．`-n` が指定されない場合は，バージョンを変更しない．`-n` 指定の有無にかかわらず，master用メタデータを持っていないときは，バージョンには空文字列が設定される．
 
