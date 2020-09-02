@@ -64,8 +64,6 @@ autograde masterに対して個別にformを作るseparateモードでビルド�
 
 `form_${exercise}.ipynb`は，`${exercise}.ipynb`のformであり，`ans_${exercise}.ipynb`は，解答例・解説・テストケースをまとめたもの（answer）である．answerは，教員が授業中に表示させたり，TAに配布したりすることを想定している．
 
-`-n` に引数を与えた場合は，その引数（文字列）がバージョンとして設定される．上の例の様に無引数の場合は，それぞれの課題内容（formに統合される内容）から計算したSHA1ハッシュがバージョンとして設定される．`-n` が指定されない場合は，バージョンを変更しない．`-n` 指定の有無にかかわらず，master用メタデータを持っていないときは，バージョンには空文字列が設定される．
-
 `autograde.zip` を作成する際に，副産物として `autograde/` を作るが，ビルド用ディレクトリなので消して問題ない．
 
 ### autogradeのビルド（bundleモード）
@@ -79,7 +77,7 @@ autograde masterに対して個別にformを作るseparateモードでビルド�
 複数のmasterを束ねたformを作るbundleモード（`-b`）でビルドする例．
 
 ```sh
-./build_autograde.py -c -n -b -t exercises_bundled/*
+./build_autograde.py -c -b -t exercises_bundled/*
 ```
 
 **効果**：
@@ -88,7 +86,6 @@ autograde masterに対して個別にformを作るseparateモードでビルド�
 * `exercises_bundled/ex1/ex1.ipynb` の作成
 * `exercises_bundled/ex1/ans_ex1.ipynb` の作成
 * `autograde.zip` の作成（`-c`）
-* `exercises_bundled/ex1/ex1-{1,2}-find_nearest.ipynb` のバージョン更新（`-n`）
 
 separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `ex1.ipynb` にまとめている．`ex1.ipynb` の導入部分として `intro.ipynb` があれば使われ，無ければディレクトリ名だけの見出し（`# ex1`）が自動で付けられる．
 
@@ -140,6 +137,17 @@ exercise_keyは正規表現 `'[a-zA-Z0-9_-]{1,64}'` にマッチする文字列�
 exercise_keyは，master用メタデータとform用メタデータの両方に埋め込まれる．アップロードされるmasterが持つexercise_keyに基づいて，更新すべき課題が特定される．提出されたformが持つexercise_keyに基づいて，提出された課題が特定される．
 
 exercise_keyの実体はipynbのメタデータにあるので，一旦メタデータが設定されたformは自由にリネームして配布できる．
+
+## 課題のバージョン
+
+masterとformのメタデータには，課題のバージョンが埋め込まれる．システムに登録された最新のmasterのバージョンに対応しないformは，提出時に形式エラーでrejectされる．このシステムの仕様に基づき，課題に意味的変更が加わった際には，バージョンを変えて，意味的変更がないとき（典型的には誤植訂正やスタイル変更）は，バージョンを保つ運用が想定されている．
+
+`build_autograde.py` 及び `release_as_is.py` を実行する際に，`-n` オプションを与えると，masterのバージョンを更新し，新しいバージョンに対応したformを生成する．具体的には，次の規則に従う．
+
+* `-n` が引数付きで指定されたときは，その引数（文字列）がバージョンとして設定される．
+* `-n` が無引無しで指定されたときは，課題内容（formに統合される内容）から計算したSHA1ハッシュがバージョンとして設定される．
+* `-n` が指定されない場合は，バージョンを保つ．
+* `-n` が指定されず，master用メタデータがない（バージョンを持っていない）場合は，空文字列がバージョンとして設定される．
 
 ## 締切の設定
 
