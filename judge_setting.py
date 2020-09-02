@@ -12,14 +12,15 @@ def generate_system_test_setting(testlist, time_limit=2, memory_limit=256):
             },
             'time_limit': time_limit,
             'require_files': require_files,
-            'accumulation_rule': {'grade': 'min'},
+            'result_aggregation': {'grade': 'min'},
             'transitions': [
-                {'if': {'only': ['CO', 'CS']}, 'then': testlist[i+1][0]},
-                {'else': 'end'}
-            ] if i + 1 < len(testlist) else [{'always': 'end'}]
+                (('$forall', ('CO', 'CS')), testlist[i+1][0])
+                if i + 1 < len(testlist) else (True, 'accept')
+            ]
         } for i, (name, require_files) in enumerate(testlist)
     }
     setting = {
+        'schema_version': 'v0.0',
         'front': {
             'editor': {
                 'name': 'CodeMirror',
@@ -41,7 +42,7 @@ def generate_system_test_setting(testlist, time_limit=2, memory_limit=256):
             'evaluation_dag': {
                 'initial_state': testlist[0][0],
                 'states': states,
-                'accumulation_rule': {'grade': 'min'}
+                'result_aggregation': {'grade': 'min'},
             }
         },
     }
