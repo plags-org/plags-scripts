@@ -2,9 +2,7 @@
 
 [PLAGS UT](https://judge.eidos.ic.i.u-tokyo.ac.jp/)（通称judgeシステム）に課題をアップロードするためのスクリプト群と簡単な課題例．
 
-## 準備
-
-### 用語
+## 用語
 
 以下では，「課題」の形態に合わせて，用語を使い分ける．
 
@@ -17,17 +15,12 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 
 尚，as-isという名称は，masterをそのまま（*as-is*）formに使うという点に由来する．
 
-### 動作環境
-
-* Python 3.7以上
-* sourceの編集にはJupyter(Lab| Notebook)を推奨
-
 ## 各種ファイルとディレクトリ
 
 提供するスクリプト：
 
-* `build_autograde.py`: autogradeのビルド用スクリプト
-* `release_as_is.py`: as-isのビルド用スクリプト
+* `build_autograde.py`: autogradeのビルド用スクリプト（Python 3.7以上）
+* `release_as_is.py`: as-isのビルド用スクリプト（Python 3.6以上）
 * `ipynb_{util,metadata}.py`: ↑2つが利用するライブラリ
 * `judge_util.py`: autogradeのテストコードの記述に使うライブラリ
 * `judge_setting.py`: autogradeのテスト設定の記述に使うライブラリ
@@ -118,6 +111,8 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `ex
 as-isの場合は，master用メタデータが設定された `exercises_as-is/*.ipynb` を個別にアップロードしてシステムに登録できる．`as-is_masters.zip` は引数に指定された `exercises_as-is/*.ipynb` を単にまとめただけである．
 
 ## 課題の作り方
+
+共通事項として，ipynbの編集にはJupyter(Lab| Notebook)を推奨する．
 
 ### autogradeの作り方
 
