@@ -29,8 +29,6 @@ INTRODUCTION_FILE = 'intro.ipynb'
 DEADLINE_FILE = 'deadline.json'
 
 CONF_DIR = 'autograde'
-CONF_SUBDIR_DOCS = 'docs'
-CONF_SUBDIR_TESTS = 'tests'
 
 SUBMISSION_CELL_FORMAT = """
 ##########################################################
@@ -272,12 +270,12 @@ def summarize_testcases(exercise: Exercise):
     return Cell(CellType.CODE, '\n'.join(contents))
 
 def create_autograde_source(exercise: Exercise):
-    docs_dir, tests_dir = [os.path.join(CONF_DIR, exercise.key, d) for d in (CONF_SUBDIR_DOCS, CONF_SUBDIR_TESTS)]
-    os.makedirs(docs_dir, exist_ok=True)
+    tests_dir = os.path.join(CONF_DIR, exercise.key)
     os.makedirs(tests_dir, exist_ok=True)
 
     cells = [x.to_ipynb() for x in exercise.content]
-    ipynb_util.save_as_notebook(os.path.join(docs_dir, 'ja.ipynb'), cells, ipynb_metadata.COMMON_METADATA)
+    _, metadata = ipynb_util.load_cells(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), True)
+    ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
         json.dump(exercise.generate_setting(), f, indent=1, ensure_ascii=False)
     for name, content, _ in exercise.system_test_cases:
@@ -300,12 +298,10 @@ def create_configuration_zip(exercises: Iterable[Exercise]):
 
     logging.info(f'[INFO] Creating configuration zip `{CONF_DIR}.zip` ...')
     with zipfile.ZipFile(CONF_DIR + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for exercise in exercises:
-            zipf.write(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), exercise.key + '.ipynb')
-            for dirpath, _, files in os.walk(os.path.join(CONF_DIR, exercise.key)):
-                arcdirpath = dirpath[len(os.path.join(CONF_DIR, '')):]
-                for fname in files:
-                    zipf.write(os.path.join(dirpath, fname), os.path.join(arcdirpath, fname))
+        for dirpath, _, files in os.walk(CONF_DIR):
+            arcdirpath = dirpath[len(os.path.join(CONF_DIR, '')):]
+            for fname in files:
+                zipf.write(os.path.join(dirpath, fname), os.path.join(arcdirpath, fname))
 
 def create_exercise_bundles(exercises: Iterable[Exercise]):
     bundle_index = collections.defaultdict(list)
