@@ -273,7 +273,7 @@ def create_autograde_source(exercise: Exercise):
     tests_dir = os.path.join(CONF_DIR, exercise.key)
     os.makedirs(tests_dir, exist_ok=True)
 
-    cells = [x.to_ipynb() for x in exercise.content]
+    cells = [x.to_ipynb() for x in itertools.chain(exercise.content, [exercise.student_code_cell])]
     _, metadata = ipynb_util.load_cells(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), True)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
