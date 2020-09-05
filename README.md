@@ -93,14 +93,14 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `ex
 ### as-isのビルド
 
 ```sh
-./release_as_is.py -z -t exercises_as-is/*.ipynb
+./release_as_is.py -c -t exercises_as-is/*.ipynb
 ```
 
 **効果**：
 
 * `exercises_as-is/*.ipynb` にmaster用メタデータを設定
 * `exercises_as-is/form_*.ipynb` の作成
-* `as-is_masters.zip` の作成（`-z`）
+* `as-is_masters.zip` の作成（`-c`）
 
 `exercises_as-is/form_${exercise}.ipynb` は，`exercises_as-is/${exercise}.ipynb` のformであり，メタデータの違いしかない．
 

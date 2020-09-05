@@ -17,7 +17,7 @@ ARCHIVE = 'as-is_masters'
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--deadline', metavar='DEADLINE_JSON', help='Specify a JSON file of deadline configuration.')
-    parser.add_argument('-z', '--zip_masters', action='store_true', help='Create a zip archive of masters.')
+    parser.add_argument('-c', '--compress', action='store_true', help='Create a zip archive of masters.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-t', '--targets', nargs='*', required=True, default=[], metavar='TARGET', help='Specify paths to exercise ipynb files.')
     commandline_args = parser.parse_args()
@@ -53,7 +53,7 @@ def main():
         logging.info(f'[INFO] Released {filepath}')
         masters[key] = (cells, version, filepath)
 
-    if commandline_args.zip_masters:
+    if commandline_args.compress:
         with zipfile.ZipFile(ARCHIVE + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
             logging.info(f'[INFO] Creating zip archive {zipf.filename} of released masters...')
             for filepath in commandline_args.targets:
