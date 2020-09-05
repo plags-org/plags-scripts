@@ -15,6 +15,8 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 
 尚，as-isという名称は，masterをそのまま（*as-is*）formに使うという点に由来する．
 
+以下では，[ipynb形式におけるmetadata](https://nbformat.readthedocs.io/en/latest/format_description.html#metadata)を単に*メタデータ*と呼ぶ．メタデータは，JupyterやColabの挙動に影響を与えず，それらの通常の利用で誤って改変されるものではない．単に，システムに対するインタフェースとして機能する．したがって，メタデータを直接編集することは想定されておらず，本レポジトリが提供するスクリプトを使って設定・更新することが想定されている．
+
 ## 各種ファイルとディレクトリ
 
 提供するスクリプト：
