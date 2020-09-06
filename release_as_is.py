@@ -25,9 +25,9 @@ def main():
     logging.info(f'[INFO] Creating master ipynb...')
     if commandline_args.deadline:
         with open(commandline_args.deadline, encoding='utf-8') as f:
-            deadline = json.load(f)
+            deadlines = json.load(f)
     else:
-        deadline = None
+        deadlines = None
     masters = {}
     for filepath in commandline_args.targets:
         key, ext = os.path.splitext(os.path.basename(filepath))
@@ -45,10 +45,12 @@ def main():
                 assert isinstance(commandline_args.renew_version, str)
                 version = commandline_args.renew_version
         else:
-            version = metadata.get('judge_master', {}).get('version', '')
+            version = ipynb_metadata.master_metadata_version(metadata)
 
+        if deadlines is None:
+            deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
         title = extract_first_heading(cells)
-        metadata = ipynb_metadata.master_metadata(key, False, version, title, deadline)
+        metadata = ipynb_metadata.master_metadata(key, False, version, title, deadlines)
         ipynb_util.save_as_notebook(filepath, cells, metadata)
         logging.info(f'[INFO] Released {filepath}')
         masters[key] = (cells, version, filepath)

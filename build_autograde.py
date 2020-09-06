@@ -167,7 +167,7 @@ def split_cells(raw_cells: Iterable[dict]):
 
 def load_exercise(dirpath, exercise_key):
     raw_cells, metadata = ipynb_util.load_cells(os.path.join(dirpath, exercise_key + '.ipynb'))
-    version = metadata.get('judge_master', {}).get('version', '')
+    version = ipynb_metadata.master_metadata_version(metadata)
     exercise_kwargs = {'key': exercise_key, 'dirpath': dirpath, 'version': version}
     for field_key, cells in split_cells(raw_cells).items():
         if field_key in (FieldKey.WARNING, FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL):
@@ -210,18 +210,13 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], commandline_options)
         cells, metadata = ipynb_util.load_cells(filepath, True)
         cells_new = [Cell(cell_type, source.strip()).to_ipynb() for cell_type, source in ipynb_util.normalized_cells(cells)]
 
-        if 'judge_master' not in metadata:
-            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title)
-
+        deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
         if commandline_options.deadline:
             try:
                 with open(os.path.join(exercise.dirpath, DEADLINE_FILE), encoding='utf-8') as f:
-                    deadline = json.load(f)
+                    deadlines = json.load(f)
             except FileNotFoundError:
-                deadline = metadata['judge_master']['deadlines']
-            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadline)
-        else:
-            deadline = metadata['judge_master']['deadlines']
+                pass
 
         if commandline_options.renew_version:
             logging.info(f'[INFO] Renew version of {exercise.key}')
@@ -237,9 +232,9 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], commandline_options)
             else:
                 assert isinstance(commandline_options.renew_version, str)
                 exercise.version = commandline_options.renew_version
-            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadline)
 
-        ipynb_util.save_as_notebook(filepath, cells_new, metadata)
+        metadata_new = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines)
+        ipynb_util.save_as_notebook(filepath, cells_new, metadata_new)
 
 def bundle_exercises(exercises: List[Exercise], is_answer: bool):
     dirpath = exercises[0].dirpath

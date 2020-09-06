@@ -31,3 +31,10 @@ def master_metadata(exercise_key: str, autograde: bool, version: str, title=None
         },
         **COMMON_METADATA,
     }
+
+def master_metadata_version(metadata):
+    return metadata.get('judge_master', {}).get('version', '')
+
+def master_metadata_deadlines(metadata):
+    deadlines = metadata.get('judge_master', {}).get('deadlines', {})
+    return {k: deadlines.get(k) for k in ('begins_at', 'opens_at', 'checks_at', 'closes_at', 'ends_at')}
