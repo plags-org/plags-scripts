@@ -219,4 +219,4 @@ do
 done
 ```
 
-とすれば，`deadline${i}.json` によって締切が設定された `exercises_as-is/ex${i}.ipynb` が生成される．その後，`-d` を指定せずに `-z` を指定して `as-is_masters.zip` を作れば，異なる締切の課題を一括でアップロードできる．
+とすれば，`deadline${i}.json` によって締切が設定された `exercises_as-is/ex${i}.ipynb` が生成される．その後，`-d` を指定せずに `-c` を指定して `as-is_masters.zip` を作れば，異なる締切の課題を一括でアップロードできる．
