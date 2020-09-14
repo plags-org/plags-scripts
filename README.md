@@ -215,7 +215,7 @@ bundleモードの場合，
 ```sh
 for i in $(seq 2 4)
 do
-    ./release_as_is.py -a -d deadline${i}.json -t exercises_as-is/ex${i}.ipynb
+    ./release_as_is.py -d deadline${i}.json -t exercises_as-is/ex${i}.ipynb
 done
 ```
 
