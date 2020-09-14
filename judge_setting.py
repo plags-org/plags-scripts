@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+DEFAULT_ENVIRONMENT = 'python__anaconda3-2020.02'
+
 output = None
 
 def generate_system_test_setting(testlist, time_limit=2, memory_limit=256):
@@ -29,7 +31,7 @@ def generate_system_test_setting(testlist, time_limit=2, memory_limit=256):
         },
         'judge': {
             'preprocess': {'rename': 'submission.py'},
-            'environment': {'name': 'python__anaconda3-2020.02', 'version': ''},
+            'environment': {'name': DEFAULT_ENVIRONMENT, 'version': ''},
             'sandbox': {
                 'name': 'Firejail',
                 'options': {

@@ -115,10 +115,11 @@ class Exercise:
             s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.student_code_cell.source)
         return Cell(CellType.CODE, s)
 
-    def generate_setting(self):
+    def generate_setting(self, environment):
         setting = copy.deepcopy(self.system_test_setting)
         setting['metadata'] = {'name': self.key, 'version': self.version}
         setting['front']['initial_source'] = self.student_code_cell.source
+        setting['judge']['environment']['name'] = environment
         return setting
 
 def split_file_code_cell(cell: Cell):
@@ -264,7 +265,7 @@ def summarize_testcases(exercise: Exercise):
     contents.pop()
     return Cell(CellType.CODE, '\n'.join(contents))
 
-def create_autograde_source(exercise: Exercise):
+def create_exercise_configuration(exercise: Exercise, environment: str):
     tests_dir = os.path.join(CONF_DIR, exercise.key)
     os.makedirs(tests_dir, exist_ok=True)
 
@@ -272,7 +273,7 @@ def create_autograde_source(exercise: Exercise):
     _, metadata = ipynb_util.load_cells(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), True)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
-        json.dump(exercise.generate_setting(), f, indent=1, ensure_ascii=False)
+        json.dump(exercise.generate_setting(environment), f, indent=1, ensure_ascii=False)
     for name, content, _ in exercise.system_test_cases:
         with open(os.path.join(tests_dir, name), 'w', encoding='utf-8', newline='\n') as f:
             f.write(content)
@@ -285,11 +286,11 @@ def create_autograde_source(exercise: Exercise):
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(os.path.join(exercise.dirpath, path), dest)
 
-def create_configuration_zip(exercises: Iterable[Exercise]):
+def create_configuration(exercises: Iterable[Exercise], environment: str):
     shutil.rmtree(CONF_DIR, ignore_errors=True)
     for exercise in exercises:
         logging.info(f'[INFO] Creating autograde source for `{exercise.key}` ...')
-        create_autograde_source(exercise)
+        create_exercise_configuration(exercise, environment)
 
     logging.info(f'[INFO] Creating configuration zip `{CONF_DIR}.zip` ...')
     with zipfile.ZipFile(CONF_DIR + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -360,7 +361,7 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
     parser.add_argument('-b', '--bundle', action='store_true', help='Bundle mode option')
     parser.add_argument('-d', '--deadline', action='store_true', help='Set deadlines to exercises')
-    parser.add_argument('-c', '--configuration', action='store_true', help='Dump configuration zip')
+    parser.add_argument('-c', '--configuration', nargs='?', const=judge_setting.DEFAULT_ENVIRONMENT, metavar='ENVIRONMENT', help=f'Create configuration for a specified environment (default: {judge_setting.DEFAULT_ENVIRONMENT})')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-t', '--targets', nargs='*', required=True, metavar='TARGET', help=f'Specify targets (ipynb files in separate mode and directories in bundle mode)')
     commandline_options = parser.parse_args()
@@ -411,8 +412,8 @@ def main():
         create_single_forms(exercises)
 
     if commandline_options.configuration:
-        logging.info('[INFO] Creating configuration zip...')
-        create_configuration_zip(exercises)
+        logging.info('[INFO] Creating configuration...')
+        create_configuration(exercises, commandline_options.configuration)
 
 if __name__ == '__main__':
     main()
