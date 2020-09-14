@@ -1,6 +1,6 @@
 # PLAGS Scripts for Exercises
 
-[PLAGS UT](https://judge.eidos.ic.i.u-tokyo.ac.jp/)（通称judgeシステム）に課題をアップロードするためのスクリプト群と簡単な課題例．
+[PLAGS UT](https://plags.eidos.ic.i.u-tokyo.ac.jp/)に課題をアップロードするためのスクリプト群と簡単な課題例．
 
 ## 用語
 
