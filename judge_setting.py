@@ -14,8 +14,7 @@ def generate_system_test_setting(testlist, time_limit=2, memory_limit=256):
             'require_files': require_files,
             'result_aggregation': {'grade': 'min'},
             'transitions': [
-                (('$forall', ('CO', 'CS')), testlist[i+1][0])
-                if i + 1 < len(testlist) else (True, 'accept')
+                (('$forall', ('CO', 'CS')), testlist[i+1][0] if i + 1 < len(testlist) else 'accept')
             ]
         } for i, (name, require_files) in enumerate(testlist)
     }
