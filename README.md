@@ -141,6 +141,10 @@ exercise_keyは，master用メタデータとform用メタデータの両方に�
 
 exercise_keyの実体はipynbのメタデータにあるので，一旦メタデータが設定されたformは自由にリネームして配布できる．
 
+### ipynbのレンダリングについて
+
+PLAGS UTは，ipynbのレンダリングに [nbviewer.js](https://github.com/kokes/nbviewer.js) を用いている．これは，必ずしもJupyterと同じレンダリングをするわけではない．とりわけ，displayの数式（`$$ ... $$`）については，表示が壊れることが確認されている．表示調整の試行錯誤の際には，[nbviewer.js live demo](https://kokes.github.io/nbviewer.js/viewer.html)で，formのレンダリングを確認すると手際が良い．
+
 ## 課題のバージョン
 
 masterとformのメタデータには，課題のバージョンが埋め込まれる．システムに登録された最新のmasterのバージョンに対応しないformは，提出時に形式エラーでrejectされる．そして，システムにmasterを登録・更新する際にも，課題のバージョンが検査される．具体的には，次の規則に従う．
