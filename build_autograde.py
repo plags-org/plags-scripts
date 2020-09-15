@@ -289,7 +289,7 @@ def create_exercise_configuration(exercise: Exercise, environment: str):
 def create_configuration(exercises: Iterable[Exercise], environment: str):
     shutil.rmtree(CONF_DIR, ignore_errors=True)
     for exercise in exercises:
-        logging.info(f'[INFO] Creating autograde source for `{exercise.key}` ...')
+        logging.info(f'[INFO] Creating configuration for `{exercise.key}` ...')
         create_exercise_configuration(exercise, environment)
 
     logging.info(f'[INFO] Creating configuration zip `{CONF_DIR}.zip` ...')
@@ -299,11 +299,8 @@ def create_configuration(exercises: Iterable[Exercise], environment: str):
             for fname in files:
                 zipf.write(os.path.join(dirpath, fname), os.path.join(arcdirpath, fname))
 
-def create_exercise_bundles(exercises: Iterable[Exercise]):
-    bundle_index = collections.defaultdict(list)
-    for exercise in exercises:
-        bundle_index[exercise.dirpath].append(exercise)
-    for dirpath, exercises in bundle_index.items():
+def create_bundled_forms(exercise_bundles):
+    for dirpath, exercises in exercise_bundles.items():
         dirname = os.path.basename(dirpath)
         for is_answer in (False, True):
             cells = [c.to_ipynb() for c in bundle_exercises(exercises, is_answer)]
@@ -356,28 +353,15 @@ def create_single_forms(exercises: Iterable[Exercise]):
             metadata = ipynb_metadata.submission_metadata({ex.key: ex.version}, True)
             ipynb_util.save_as_notebook(filepath, cells, metadata)
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
-    parser.add_argument('-b', '--bundle', action='store_true', help='Bundle mode option')
-    parser.add_argument('-d', '--deadline', action='store_true', help='Set deadlines to exercises')
-    parser.add_argument('-c', '--configuration', nargs='?', const=judge_setting.DEFAULT_ENVIRONMENT, metavar='ENVIRONMENT', help=f'Create configuration for a specified environment (default: {judge_setting.DEFAULT_ENVIRONMENT})')
-    parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
-    parser.add_argument('-t', '--targets', nargs='*', required=True, metavar='TARGET', help=f'Specify targets (ipynb files in separate mode and directories in bundle mode)')
-    commandline_options = parser.parse_args()
-    if commandline_options.verbose:
-        logging.getLogger().setLevel('DEBUG')
-    else:
-        logging.getLogger().setLevel('INFO')
-
+def load_targets(target_paths: Iterable[str]):
     exercises = []
+    bundles = collections.defaultdict(list)
     existing_keys = {}
-    if commandline_options.bundle:
-        for dirpath in sorted(commandline_options.targets):
-            if not os.path.isdir(dirpath):
-                logging.info(f'[INFO] Skip {dirpath}')
-                continue
+    for path in sorted(target_paths):
+        if os.path.isdir(path):
+            dirpath = path
             dirname = os.path.basename(dirpath)
+            logging.info(f'[INFO] Loading `{dirpath}`...')
             for nb in sorted(os.listdir(dirpath)):
                 match = re.fullmatch(fr'({dirname}[-_].*)\.ipynb', nb)
                 if match is None:
@@ -386,10 +370,10 @@ def main():
                 assert exercise_key not in existing_keys, \
                     f'[ERROR] Exercise key conflicts between `{dirpath}/{nb}` and `{existing_keys[exercise_key]}`.'
                 existing_keys[exercise_key] = os.path.join(dirpath, nb)
-                exercises.append(load_exercise(dirpath, exercise_key))
+                bundles[dirpath].append(load_exercise(dirpath, exercise_key))
                 logging.info(f'[INFO] Loaded `{dirpath}/{nb}`')
-    else:
-        for filepath in sorted(commandline_options.targets):
+        else:
+            filepath = path
             if not filepath.endswith('.ipynb'):
                 logging.info(f'[INFO] Skip {filepath}')
                 continue
@@ -400,16 +384,31 @@ def main():
             existing_keys[exercise_key] = filepath
             exercises.append(load_exercise(dirpath, exercise_key))
             logging.info(f'[INFO] Loaded `{filepath}`')
+    return exercises, bundles
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
+    parser.add_argument('-d', '--deadline', action='store_true', help='Set deadlines to exercises')
+    parser.add_argument('-c', '--configuration', nargs='?', const=judge_setting.DEFAULT_ENVIRONMENT, metavar='ENVIRONMENT', help=f'Create configuration for a specified environment (default: {judge_setting.DEFAULT_ENVIRONMENT})')
+    parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
+    parser.add_argument('-t', '--targets', nargs='*', required=True, metavar='TARGET', help=f'Specify targets (ipynb files in separate mode and directories in bundle mode)')
+    commandline_options = parser.parse_args()
+    if commandline_options.verbose:
+        logging.getLogger().setLevel('DEBUG')
+    else:
+        logging.getLogger().setLevel('INFO')
+
+    separates, bundles = load_targets(commandline_options.targets)
+    exercises = list(itertools.chain(*bundles.values(), separates))
 
     logging.info('[INFO] Cleaning up exercise masters...')
     cleanup_exercise_masters(exercises, commandline_options)
 
-    if commandline_options.bundle:
-        logging.info('[INFO] Creating bundled forms...')
-        create_exercise_bundles(exercises)
-    else:
-        logging.info('[INFO] Creating separate forms...')
-        create_single_forms(exercises)
+    logging.info('[INFO] Creating bundled forms...')
+    create_bundled_forms(bundles)
+    logging.info('[INFO] Creating separate forms...')
+    create_single_forms(separates)
 
     if commandline_options.configuration:
         logging.info('[INFO] Creating configuration...')
