@@ -30,9 +30,9 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 
 課題例：
 
-* `exercises_separate/ex1-{1,2}-find_nearest.ipynb`: autograde masterの具体例（separateモード用）
-* `exercises_bundled/ex1/ex1-{1,2}-find_nearest.ipynb`: autograde masterの具体例（bundleモード用）
-* `exercises_bundled/ex1/intro.ipynb`: bundleしたときの導入部分（オプショナル）
+* `exercises_autograde/ex1-3-find_nearest_str.ipynb`: autograde masterの具体例（separateモード用）
+* `exercises_autograde/ex1/ex1-{1,2}-find_nearest.ipynb`: autograde masterの具体例（bundleモード用）
+* `exercises_autograde/ex1/intro.ipynb`: bundleしたときの導入部分（オプショナル）
 * `exercises_as-is/ex2.ipynb`: as-is masterの具体例
 
 アップロード用ファイル：
@@ -42,55 +42,76 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 
 ## スクリプトの使い方
 
-### autogradeのビルド（separateモード）
+### autogradeのビルド
+
+#### separateモードのビルド
 
 準備として，`judge_util.py` を所定のディレクトリにインストールする．
 
 ```sh
-./install_judge_util.sh exercises_separate
+./install_judge_util.sh exercises_autograde
 ```
 
 autograde masterに対して個別にformを作るseparateモードでビルドする例．
 
 ```sh
-./build_autograde.py -c -t exercises_separate/ex1-{1,2}-find_nearest.ipynb
+./build_autograde.py -t exercises_autograde/ex1-3-find_nearest_str.ipynb
 ```
 
 **効果**：
 
-* `exercises_separate/ex1-{1,2}-find_nearest.ipynb` から出力部分を除去し，master用メタデータを設定
-* `exercises_separate/form_ex1-{1,2}-find_nearest.ipynb` の作成
-* `exercises_separate/ans_ex1-{1,2}-find_nearest.ipynb` の作成
-* `autograde.zip` の作成（`-c`）
+* `exercises_autograde/ex1-3-find_nearest_str.ipynb` から出力部分を除去し，master用メタデータを設定
+* `exercises_autograde/form_ex1-3-find_nearest_str.ipynb` の作成
+* `exercises_autograde/ans_ex1-3-find_nearest_str.ipynb` の作成
 
 `form_${exercise}.ipynb`は，`${exercise}.ipynb`のformであり，`ans_${exercise}.ipynb`は，解答例・解説・テストケースをまとめたもの（answer）である．answerは，教員が授業中に表示させたり，TAに配布したりすることを想定している．
 
-`autograde.zip` を作成する際に，副産物として `autograde/` を作るが，ビルド用ディレクトリなので消して問題ない．
+`-t` は任意個の引数を取ることができる．したがって，コマンドラインのワイルドカード指定などを使うことで，一括ビルドができる．
 
-### autogradeのビルド（bundleモード）
+#### bundleモードのビルド
 
 準備として，`judge_util.py` を所定のディレクトリにインストールする．
 
 ```sh
-./install_judge_util.sh exercises_bundled/*
+./install_judge_util.sh exercises_autograde/ex1
 ```
 
-複数のmasterを束ねたformを作るbundleモード（`-b`）でビルドする例．
+複数のmasterを束ねたformを作るbundleモードでビルドする例．
 
 ```sh
-./build_autograde.py -c -b -t exercises_bundled/*
+./build_autograde.py -t exercises_autograde/ex1
 ```
 
 **効果**：
 
-* `exercises_bundled/ex1/ex1-{1,2}-find_nearest.ipynb` からOutputを除去し，master用メタデータを設定
-* `exercises_bundled/ex1/ex1.ipynb` の作成
-* `exercises_bundled/ex1/ans_ex1.ipynb` の作成
-* `autograde.zip` の作成（`-c`）
+* `exercises_autograde/ex1/ex1-{1,2}-find_nearest.ipynb` からOutputを除去し，master用メタデータを設定
+* `exercises_autograde/ex1/ex1.ipynb` の作成
+* `exercises_autograde/ex1/ans_ex1.ipynb` の作成
 
 separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `ex1.ipynb` にまとめている．`ex1.ipynb` の導入部分として `intro.ipynb` があれば使われ，無ければディレクトリ名だけの見出し（`# ex1`）が自動で付けられる．
 
 `ans_ex1.ipynb`は，`ex1-{1,2}-find_nearest.ipynb`のanswerをまとめたものである．
+
+ビルドが，bundleモードになるかseparateモードになるは，`-t` で指定される対象がディレクトリかipynbかで決まる．それらを混合して指定することもできる．
+
+#### `autograde.zip` の生成
+
+アップロード用設定ファイル `autograde.zip` を生成するには，アップロード対象のmaster全てを対象に指定して，`-c` オプションで実行する．
+
+```sh
+./build_autograde.py -c -t exercises_autograde/ex1*
+```
+
+**効果**：
+
+* `./build_autograde.py -t exercises_autograde/ex1` の効果
+* `./build_autograde.py -t exercises_autograde/ex1-3-find_nearest_str.ipynb` の効果
+* `exercises_autograde/ex1/ex1-{1,2}-find_nearest.ipynb` と
+  `exercises_autograde/ex1-3-find_nearest_str.ipynb` からなる `autograde.zip` を作成
+
+`autograde.zip` を作成する際に，副産物として `autograde/` を作るが，ビルド用ディレクトリなので消して問題ない．
+
+`-c` は環境名を引数に取ることができる．これは，PLAGS UTで用いる自動評価環境を指定するものである．
 
 ### as-isのビルド
 
@@ -114,13 +135,13 @@ as-isの場合は，master用メタデータが設定された `exercises_as-is/
 
 ### autogradeの作り方
 
-separateモードを使うなら`exercises_separate/ex1-1-find_nearest.ipynb`をコピーして，bundleモードを使うなら`exercises_bundled/ex1/ex1-1-find_nearest.ipynb`をコピーして，そこに書かれた指示に従って改変する．
+separateモードを使うなら`exercises_autograde/ex1-3-find_nearest_str.ipynb`をコピーして，bundleモードを使うなら`exercises_autograde/ex1/ex1-1-find_nearest.ipynb`をコピーして，そこに書かれた指示に従って改変する．
 
 ただし，bundleモードを利用する際には，次の点を踏まえて，ファイルやディレクトリの命名に留意すること．
 
-* `exercises_bunbled/foo` というディレクトリは `exercises_bundled/foo/foo.ipynb` という form を作るためのディレクトリである．
-* `exercises_bundled/foo/foo[-_].*\.ipynb` の正規表現にマッチするファイルが `foo.ipynb` を作るmasterと見做される．
-* `foo.ipynb` 内での課題の順序は，masterのファイル名の辞書順である．
+* `spam` というディレクトリが指定されると，`spam/spam.ipynb` というformを作る．
+* `spam/spam[-_].*\.ipynb` の正規表現にマッチするファイルが `spam.ipynb` を作るmasterと見做される．
+* `spam.ipynb` 内での課題の順序は，masterのファイル名の辞書順である．
 
 ### as-isの作り方
 
@@ -191,20 +212,20 @@ masterとformのメタデータには，課題のバージョンが埋め込ま�
 例えば，次のように `-d` オプションを与えると，
 
 ```sh
-./build_autograde.py -d -t exercises_separate/ex1-{1,2}-find_nearest.ipynb
+./build_autograde.py -d -t exercises_autograde/ex1-3-find_nearest_str.ipynb
 ```
 
-`exercises_separate/deadline.json` を使って，`exercises_separate/ex1-{1,2}-find_nearest.ipynb` のメタデータに締切を埋め込む．`-d` が指定されない場合は，締切メタデータを変更しない．`-d` 指定されていても，`exercises_separate/deadline.json` が無かった場合には，`exercises_separate/ex1-{1,2}-find_nearest.ipynb` に対する `-d` 指定は無効になる．そして，`-d` 指定の有無にかかわらず，master用メタデータを持っていなかった場合は，全ての締切項目が `null` と設定される．
+`exercises_autograde/deadline.json` を使って，`exercises_autograde/ex1-find_nearest_str.ipynb` のメタデータに締切を埋め込む．`-d` が指定されない場合は，締切メタデータを変更しない．`-d` 指定されていても，`exercises_autograde/deadline.json` が無かった場合には，`exercises_autograde/ex1-3-find_nearest_str.ipynb` に対する `-d` 指定は無効になる．そして，`-d` 指定の有無にかかわらず，master用メタデータを持っていなかった場合は，全ての締切項目が `null` と設定される．
 
 bundleモードの場合，
 
 ```sh
-./build_autograde.py -b -d -t exercises_bundled/*
+./build_autograde.py -d -t exercises_autograde/ex1
 ```
 
 とすると，
 
-`exercises_bundled/${dirname}/deadline.json` が，`exercises_bundled/${dirname}/${dirname}.ipynb` を構成するmasterに対して使われる．
+`exercises_autograde/ex1/deadline.json` が，`exercises_autograde/ex1/ex1.ipynb` を構成するmasterに対して使われる．
 
 ### as-isの場合の設定方法
 
