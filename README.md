@@ -207,41 +207,24 @@ masterとformのメタデータには，課題のバージョンが埋め込ま�
 
 属性値は `null` も可能である．`null`の項目は，システムのCourse設定から自動的に計算される．属性値が `null` の項目は，省略できる．
 
-### autogradeの場合の設定方法
+### 設定方法
 
-例えば，次のように `-d` オプションを与えると，
-
-```sh
-./build_autograde.py -d -t exercises_autograde/ex1-3-find_nearest_str.ipynb
-```
-
-`exercises_autograde/deadline.json` を使って，`exercises_autograde/ex1-find_nearest_str.ipynb` のメタデータに締切を埋め込む．`-d` が指定されない場合は，締切メタデータを変更しない．`-d` 指定されていても，`exercises_autograde/deadline.json` が無かった場合には，`exercises_autograde/ex1-3-find_nearest_str.ipynb` に対する `-d` 指定は無効になる．そして，`-d` 指定の有無にかかわらず，master用メタデータを持っていなかった場合は，全ての締切項目が `null` と設定される．
-
-bundleモードの場合，
+`build_autograde.py` 及び `release_as_is.py` は，`-d` オプションの引数として `deadline.json` を指定できる．`-d` を指定すると，`-t` で指定された対象のmaster全てについて，締切を設定する．逆に，`-d` が指定されない場合は，締切を変更しない．例えば，次のコマンドは，
 
 ```sh
-./build_autograde.py -d -t exercises_autograde/ex1
+./build_autograde.py -d deadline.json -t exercises_autograde/ex1*
 ```
 
-とすると，
+`deadline.json` の締切情報を，`exercises_autograde/ex1/ex1-{1,2}-find_nearest.ipynb` と `exercises_autograde/ex1-3-find_nearest_str.ipynb` のメタデータに埋め込む．
 
-`exercises_autograde/ex1/deadline.json` が，`exercises_autograde/ex1/ex1.ipynb` を構成するmasterに対して使われる．
-
-### as-isの場合の設定方法
-
-例えば，次のように `-d` オプションを与えると，
+課題毎に異なる締切を設定したいときには，個別に指定すればよい．例えば，次のように指定すればよい．
 
 ```sh
-./release_as_is.py -d deadline.json -t exercises_as_is/*.ipynb
+./build_autograde.py -d deadine1.json -t exercises_autograde/ex1
+./build_autograde.py -d deadine1-3.json -t exercises_autograde/ex1-3-find_nearest_str.ipynb
+./release_as_is.py -d deadine2.json -t exercises_as-is/ex2.ipynb
 ```
 
-`deadline.json` を使って，`exercises_as_is/*.ipynb` の全てに共通の締切を設定する．課題毎に異なる締切を設定したいときには，個別に指定すればよい．例えば，
+ここで，bundleモードで一括処理される課題 `exercises_autograde/ex1/ex1-{1,2}-find_nearest.ipynb` は，共通の締切になる．
 
-```sh
-for i in $(seq 2 4)
-do
-    ./release_as_is.py -d deadline${i}.json -t exercises_as-is/ex${i}.ipynb
-done
-```
-
-とすれば，`deadline${i}.json` によって締切が設定された `exercises_as-is/ex${i}.ipynb` が生成される．その後，`-d` を指定せずに `-c` を指定して `as-is_masters.zip` を作れば，異なる締切の課題を一括でアップロードできる．
+その後，`-d` を指定せずに `-c` を指定して `autograde.zip` 及び `as-is_masters.zip` を作れば，異なる締切の課題を一括でアップロードできる．
