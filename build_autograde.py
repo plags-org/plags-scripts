@@ -237,25 +237,6 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], commandline_options)
         metadata_new = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines)
         ipynb_util.save_as_notebook(filepath, cells_new, metadata_new)
 
-def bundle_exercises(exercises: List[Exercise], is_answer: bool):
-    dirpath = exercises[0].dirpath
-    assert all(dirpath == e.dirpath for e in exercises)
-    try:
-        raw_cells, _ = ipynb_util.load_cells(os.path.join(dirpath, INTRODUCTION_FILE))
-        cells = [Cell(t, s) for t, s in ipynb_util.normalized_cells(raw_cells)]
-    except FileNotFoundError:
-        cells = [Cell(CellType.MARKDOWN, f'# {os.path.basename(dirpath)}')]
-    for exercise in exercises:
-        cells.extend(exercise.content)
-        if is_answer:
-            cells.extend(exercise.answer_examples)
-            cells.append(summarize_testcases(exercise))
-            cells.extend(exercise.explanation)
-        else:
-            cells.append(exercise.submission_cell())
-            cells.extend(exercise.student_tests)
-    return cells
-
 def summarize_testcases(exercise: Exercise):
     contents = []
     is_not_decorator_line = lambda x: not x.startswith('@judge_util.')
@@ -302,27 +283,37 @@ def create_configuration(exercises: Iterable[Exercise], environment: str):
 def create_bundled_forms(exercise_bundles):
     for dirpath, exercises in exercise_bundles.items():
         dirname = os.path.basename(dirpath)
-        for is_answer in (False, True):
-            cells = [c.to_ipynb() for c in bundle_exercises(exercises, is_answer)]
-            if is_answer:
-                filepath = os.path.join(dirpath, f'ans_{dirname}.ipynb')
-                metadata = ipynb_metadata.COMMON_METADATA
-            else:
-                filepath = os.path.join(dirpath, f'{dirname}.ipynb')
-                key_to_ver = {e.key: e.version for e in exercises if e.submission_redirection() is None}
-                metadata = ipynb_metadata.submission_metadata(key_to_ver, True)
-            ipynb_util.save_as_notebook(filepath, cells, metadata)
-        for e in exercises:
-            redirect_to = e.submission_redirection()
-            if redirect_to is None:
-                continue
-            metadata = ipynb_metadata.submission_metadata({e.key: e.version}, True)
-            filepath = os.path.join(e.dirpath, redirect_to)
-            cells, _ = ipynb_util.load_cells(filepath, True)
-            assert any(re.search(rf'<\[ {e.key} \]>', line)
-                       for c in cells if c['cell_type'] == CellType.CODE.value for line in c['source']), \
-                f'{redirect_to} has no answer cell for {e.key}.'
-            ipynb_util.save_as_notebook(filepath, cells, metadata)
+        try:
+            raw_cells, _ = ipynb_util.load_cells(os.path.join(dirpath, INTRODUCTION_FILE))
+            intro = [Cell(t, s) for t, s in ipynb_util.normalized_cells(raw_cells)]
+        except FileNotFoundError:
+            intro = [Cell(CellType.MARKDOWN, f'# {os.path.basename(dirpath)}')]
+
+        # Create answer
+        body = []
+        for exercise in exercises:
+            body.extend(exercise.content)
+            body.extend(exercise.answer_examples)
+            body.append(summarize_testcases(exercise))
+            body.extend(exercise.explanation)
+        filepath = os.path.join(dirpath, f'ans_{dirname}.ipynb')
+        metadata = ipynb_metadata.COMMON_METADATA
+        ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in itertools.chain(intro, body)], metadata)
+
+        # Create form
+        body = []
+        for exercise in exercises:
+            body.extend(exercise.content)
+            body.append(exercise.submission_cell())
+            body.extend(exercise.student_tests)
+        filepath = os.path.join(dirpath, f'{dirname}.ipynb')
+        key_to_ver = {ex.key: ex.version for ex in exercises if ex.submission_redirection() is None}
+        metadata = ipynb_metadata.submission_metadata(key_to_ver, True)
+        ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in itertools.chain(intro, body)], metadata)
+
+        for ex in exercises:
+            if ex.submission_redirection():
+                create_redirect_form(ex)
 
 def create_single_forms(exercises: Iterable[Exercise]):
     for ex in exercises:
@@ -334,24 +325,24 @@ def create_single_forms(exercises: Iterable[Exercise]):
 
         # Create form
         cells = itertools.chain(ex.content, [ex.submission_cell()], ex.student_tests)
-        redirect_to = ex.submission_redirection()
-        if redirect_to is None:
+        if ex.submission_redirection() is None:
             filepath = os.path.join(ex.dirpath, f'form_{ex.key}.ipynb')
             metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version}, True)
         else:
+            create_redirect_form(ex)
             filepath = os.path.join(ex.dirpath, f'pseudo-form_{ex.key}.ipynb')
             metadata = ipynb_metadata.COMMON_METADATA
         ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in cells], metadata)
 
-        if redirect_to is not None:
-            # Create redirected form
-            filepath = os.path.join(ex.dirpath, redirect_to)
-            cells, _ = ipynb_util.load_cells(filepath, True)
-            assert any(re.search(rf'<\[ {ex.key} \]>', line)
-                       for c in cells if c['cell_type'] == CellType.CODE.value for line in c['source']), \
-                f'{redirect_to} has no answer cell for {ex.key}.'
-            metadata = ipynb_metadata.submission_metadata({ex.key: ex.version}, True)
-            ipynb_util.save_as_notebook(filepath, cells, metadata)
+def create_redirect_form(exercise: Exercise):
+    redirect_to = exercise.submission_redirection()
+    filepath = os.path.join(exercise.dirpath, redirect_to)
+    cells, _ = ipynb_util.load_cells(filepath, True)
+    assert any(re.search(rf'<\[ {exercise.key} \]>', line)
+               for c in cells if c['cell_type'] == CellType.CODE.value for line in c['source']), \
+        f'{redirect_to} has no answer cell for {exercise.key}.'
+    metadata = ipynb_metadata.submission_metadata({exercise.key: exercise.version}, True)
+    ipynb_util.save_as_notebook(filepath, cells, metadata)
 
 def load_targets(target_paths: Iterable[str]):
     exercises = []
