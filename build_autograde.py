@@ -26,7 +26,6 @@ if (sys.version_info.major, sys.version_info.minor) < (3, 7):
     sys.exit(1)
 
 INTRODUCTION_FILE = 'intro.ipynb'
-DEADLINE_FILE = 'deadline.json'
 
 CONF_DIR = 'autograde'
 
@@ -206,18 +205,20 @@ def load_exercise(dirpath, exercise_key):
     return Exercise(**exercise_kwargs)
 
 def cleanup_exercise_masters(exercises: Iterable[Exercise], commandline_options):
+    deadlines_new = None
+    if commandline_options.deadline:
+        with open(commandline_options.deadline, encoding='utf-8') as f:
+            deadlines_new = json.load(f)
     for exercise in exercises:
         filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
         cells, metadata = ipynb_util.load_cells(filepath, True)
         cells_new = [Cell(cell_type, source.strip()).to_ipynb() for cell_type, source in ipynb_util.normalized_cells(cells)]
 
-        deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
-        if commandline_options.deadline:
-            try:
-                with open(os.path.join(exercise.dirpath, DEADLINE_FILE), encoding='utf-8') as f:
-                    deadlines = json.load(f)
-            except FileNotFoundError:
-                pass
+        if deadlines_new is None:
+            deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
+        else:
+            logging.info(f'[INFO] Renew deadline of {exercise.key}')
+            deadlines = deadlines_new
 
         if commandline_options.renew_version:
             logging.info(f'[INFO] Renew version of {exercise.key}')
@@ -380,7 +381,7 @@ def load_targets(target_paths: Iterable[str]):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
-    parser.add_argument('-d', '--deadline', action='store_true', help='Set deadlines to exercises')
+    parser.add_argument('-d', '--deadline', metavar='DEADLINE_JSON', help='Specify a JSON file of deadline configuration.')
     parser.add_argument('-c', '--configuration', nargs='?', const=judge_setting.DEFAULT_ENVIRONMENT, metavar='ENVIRONMENT', help=f'Create configuration for a specified environment (default: {judge_setting.DEFAULT_ENVIRONMENT})')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-t', '--targets', nargs='*', required=True, metavar='TARGET', help=f'Specify targets (ipynb files in separate mode and directories in bundle mode)')
