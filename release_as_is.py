@@ -23,11 +23,10 @@ def main():
     commandline_args = parser.parse_args()
 
     logging.info(f'[INFO] Creating master ipynb...')
+    deadlines_new = None
     if commandline_args.deadline:
         with open(commandline_args.deadline, encoding='utf-8') as f:
-            deadlines = json.load(f)
-    else:
-        deadlines = None
+            deadlines_new = json.load(f)
     masters = {}
     for filepath in commandline_args.targets:
         key, ext = os.path.splitext(os.path.basename(filepath))
@@ -47,8 +46,12 @@ def main():
         else:
             version = ipynb_metadata.master_metadata_version(metadata)
 
-        if deadlines is None:
+        if deadlines_new is None:
             deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
+        else:
+            logging.info(f'[INFO] Renew deadline of {key}')
+            deadlines = deadlines_new
+
         title = extract_first_heading(cells)
         metadata = ipynb_metadata.master_metadata(key, False, version, title, deadlines)
         ipynb_util.save_as_notebook(filepath, cells, metadata)
