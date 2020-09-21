@@ -34,7 +34,8 @@ def main():
         cells, metadata = ipynb_util.load_cells(filepath, True)
         assert key not in masters
 
-        if commandline_args.renew_version:
+        version = ipynb_metadata.master_metadata_version(metadata)
+        if commandline_args.renew_version is not None:
             logging.info(f'[INFO] Renew version of {filepath}')
             if commandline_args.renew_version == hashlib.sha1:
                 m = hashlib.sha1()
@@ -43,8 +44,6 @@ def main():
             else:
                 assert isinstance(commandline_args.renew_version, str)
                 version = commandline_args.renew_version
-        else:
-            version = ipynb_metadata.master_metadata_version(metadata)
 
         if deadlines_new is None:
             deadlines = ipynb_metadata.master_metadata_deadlines(metadata)

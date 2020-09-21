@@ -220,7 +220,7 @@ def cleanup_exercise_masters(exercises: Iterable[Exercise], commandline_options)
             logging.info(f'[INFO] Renew deadline of {exercise.key}')
             deadlines = deadlines_new
 
-        if commandline_options.renew_version:
+        if commandline_options.renew_version is not None:
             logging.info(f'[INFO] Renew version of {exercise.key}')
             if commandline_options.renew_version == hashlib.sha1:
                 exercise_definition = {
