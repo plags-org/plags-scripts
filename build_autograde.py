@@ -345,11 +345,11 @@ def create_redirect_form(exercise: Exercise):
     metadata = ipynb_metadata.submission_metadata({exercise.key: exercise.version}, True)
     ipynb_util.save_as_notebook(filepath, cells, metadata)
 
-def load_targets(target_paths: Iterable[str]):
+def load_sources(source_paths: Iterable[str]):
     exercises = []
     bundles = collections.defaultdict(list)
     existing_keys = {}
-    for path in sorted(target_paths):
+    for path in sorted(source_paths):
         if os.path.isdir(path):
             dirpath = path
             dirname = os.path.basename(dirpath)
@@ -384,14 +384,14 @@ def main():
     parser.add_argument('-d', '--deadline', metavar='DEADLINE_JSON', help='Specify a JSON file of deadline configuration.')
     parser.add_argument('-c', '--configuration', nargs='?', const=judge_setting.DEFAULT_ENVIRONMENT, metavar='ENVIRONMENT', help=f'Create configuration for a specified environment (default: {judge_setting.DEFAULT_ENVIRONMENT})')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
-    parser.add_argument('-t', '--targets', nargs='*', required=True, metavar='TARGET', help=f'Specify targets (ipynb files in separate mode and directories in bundle mode)')
+    parser.add_argument('-s', '--source', nargs='*', required=True, help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
     commandline_options = parser.parse_args()
     if commandline_options.verbose:
         logging.getLogger().setLevel('DEBUG')
     else:
         logging.getLogger().setLevel('INFO')
 
-    separates, bundles = load_targets(commandline_options.targets)
+    separates, bundles = load_sources(commandline_options.source)
     exercises = list(itertools.chain(*bundles.values(), separates))
 
     logging.info('[INFO] Cleaning up exercise masters...')

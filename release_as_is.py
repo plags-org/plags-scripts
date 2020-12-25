@@ -19,7 +19,7 @@ def main():
     parser.add_argument('-d', '--deadline', metavar='DEADLINE_JSON', help='Specify a JSON file of deadline configuration.')
     parser.add_argument('-c', '--compress', action='store_true', help='Create a zip archive of masters.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
-    parser.add_argument('-t', '--targets', nargs='*', required=True, default=[], metavar='TARGET', help='Specify paths to exercise ipynb files.')
+    parser.add_argument('-s', '--source', nargs='*', required=True, help='Specify paths to exercise ipynb files.')
     commandline_args = parser.parse_args()
 
     logging.info(f'[INFO] Creating master ipynb...')
@@ -28,9 +28,9 @@ def main():
         with open(commandline_args.deadline, encoding='utf-8') as f:
             deadlines_new = json.load(f)
     masters = {}
-    for filepath in commandline_args.targets:
+    for filepath in commandline_args.source:
         key, ext = os.path.splitext(os.path.basename(filepath))
-        assert ext == '.ipynb', f'Not ipynb target: {filepath}'
+        assert ext == '.ipynb', f'Not ipynb: {filepath}'
         cells, metadata = ipynb_util.load_cells(filepath, True)
         assert key not in masters
 
@@ -60,7 +60,7 @@ def main():
     if commandline_args.compress:
         with zipfile.ZipFile(ARCHIVE + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
             logging.info(f'[INFO] Creating zip archive {zipf.filename} of released masters...')
-            for filepath in commandline_args.targets:
+            for filepath in commandline_args.source:
                 zipf.write(filepath, os.path.basename(filepath))
         logging.info(f'[INFO] Released {ARCHIVE}.zip')
 

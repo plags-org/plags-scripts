@@ -55,7 +55,7 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 autograde masterに対して個別にformを作るseparateモードでビルドする例．
 
 ```sh
-./build_autograde.py -t exercises_autograde/ex1-3-find_nearest_str.ipynb
+./build_autograde.py -s exercises_autograde/ex1-3-find_nearest_str.ipynb
 ```
 
 **効果**：
@@ -66,7 +66,7 @@ autograde masterに対して個別にformを作るseparateモードでビルド�
 
 `form_${exercise}.ipynb`は，`${exercise}.ipynb`のformであり，`ans_${exercise}.ipynb`は，解答例・解説・テストケースをまとめたもの（answer）である．answerは，教員が授業中に表示させたり，TAに配布したりすることを想定している．
 
-`-t` は任意個の引数を取ることができる．したがって，コマンドラインのワイルドカード指定などを使うことで，一括ビルドができる．
+`-s` は任意個の引数を取ることができる．したがって，コマンドラインのワイルドカード指定などを使うことで，一括ビルドができる．
 
 #### bundleモードのビルド
 
@@ -79,7 +79,7 @@ autograde masterに対して個別にformを作るseparateモードでビルド�
 複数のmasterを束ねたformを作るbundleモードでビルドする例．
 
 ```sh
-./build_autograde.py -t exercises_autograde/ex1
+./build_autograde.py -s exercises_autograde/ex1
 ```
 
 **効果**：
@@ -92,20 +92,20 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `ex
 
 `ans_ex1.ipynb`は，`ex1-{1,2}-find_nearest.ipynb`のanswerをまとめたものである．
 
-ビルドが，bundleモードになるかseparateモードになるは，`-t` で指定される対象がディレクトリかipynbかで決まる．それらを混合して指定することもできる．
+ビルドが，bundleモードになるかseparateモードになるは，`-s` で指定される対象がディレクトリかipynbかで決まる．それらを混合して指定することもできる．
 
 #### `autograde.zip` の生成
 
 アップロード用設定ファイル `autograde.zip` を生成するには，アップロード対象のmaster全てを対象に指定して，`-c` オプションで実行する．
 
 ```sh
-./build_autograde.py -c -t exercises_autograde/ex1*
+./build_autograde.py -c -s exercises_autograde/ex1*
 ```
 
 **効果**：
 
-* `./build_autograde.py -t exercises_autograde/ex1` の効果
-* `./build_autograde.py -t exercises_autograde/ex1-3-find_nearest_str.ipynb` の効果
+* `./build_autograde.py -s exercises_autograde/ex1` の効果
+* `./build_autograde.py -s exercises_autograde/ex1-3-find_nearest_str.ipynb` の効果
 * `exercises_autograde/ex1/ex1-{1,2}-find_nearest.ipynb` と
   `exercises_autograde/ex1-3-find_nearest_str.ipynb` からなる `autograde.zip` を作成
 
@@ -116,7 +116,7 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `ex
 ### as-isのビルド
 
 ```sh
-./release_as_is.py -c -t exercises_as-is/*.ipynb
+./release_as_is.py -c -s exercises_as-is/*.ipynb
 ```
 
 **効果**：
@@ -209,10 +209,10 @@ masterとformのメタデータには，課題のバージョンが埋め込ま�
 
 ### 設定方法
 
-`build_autograde.py` 及び `release_as_is.py` は，`-d` オプションの引数として `deadline.json` を指定できる．`-d` を指定すると，`-t` で指定された対象のmaster全てについて，締切を設定する．逆に，`-d` が指定されない場合は，締切を変更しない．例えば，次のコマンドは，
+`build_autograde.py` 及び `release_as_is.py` は，`-d` オプションの引数として `deadline.json` を指定できる．`-d` を指定すると，`-s` で指定された対象のmaster全てについて，締切を設定する．逆に，`-d` が指定されない場合は，締切を変更しない．例えば，次のコマンドは，
 
 ```sh
-./build_autograde.py -d deadline.json -t exercises_autograde/ex1*
+./build_autograde.py -d deadline.json -s exercises_autograde/ex1*
 ```
 
 `deadline.json` の締切情報を，`exercises_autograde/ex1/ex1-{1,2}-find_nearest.ipynb` と `exercises_autograde/ex1-3-find_nearest_str.ipynb` のメタデータに埋め込む．
@@ -220,9 +220,9 @@ masterとformのメタデータには，課題のバージョンが埋め込ま�
 課題毎に異なる締切を設定したいときには，個別に指定すればよい．例えば，次のように指定すればよい．
 
 ```sh
-./build_autograde.py -d deadine1.json -t exercises_autograde/ex1
-./build_autograde.py -d deadine1-3.json -t exercises_autograde/ex1-3-find_nearest_str.ipynb
-./release_as_is.py -d deadine2.json -t exercises_as-is/ex2.ipynb
+./build_autograde.py -d deadine1.json -s exercises_autograde/ex1
+./build_autograde.py -d deadine1-3.json -s exercises_autograde/ex1-3-find_nearest_str.ipynb
+./release_as_is.py -d deadine2.json -s exercises_as-is/ex2.ipynb
 ```
 
 ここで，bundleモードで一括処理される課題 `exercises_autograde/ex1/ex1-{1,2}-find_nearest.ipynb` は，共通の締切になる．
