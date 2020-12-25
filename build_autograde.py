@@ -114,6 +114,10 @@ class Exercise:
             s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.student_code_cell.source)
         return Cell(CellType.CODE, s)
 
+    def submission_cell_filled(self):
+        s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_examples[0].source if self.answer_examples else self.student_code_cell.source)
+        return Cell(CellType.CODE, s)
+
     def generate_setting(self, environment):
         setting = copy.deepcopy(self.system_test_setting)
         setting['metadata'] = {'name': self.key, 'version': self.version}
@@ -345,6 +349,10 @@ def create_redirect_form(exercise: Exercise):
     metadata = ipynb_metadata.submission_metadata({exercise.key: exercise.version}, True)
     ipynb_util.save_as_notebook(filepath, cells, metadata)
 
+def create_filled_form(exercises: Iterable[Exercise], filepath):
+    metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version for ex in exercises}, True)
+    ipynb_util.save_as_notebook(filepath, [ex.submission_cell_filled().to_ipynb() for ex in exercises], metadata)
+
 def load_sources(source_paths: Iterable[str]):
     exercises = []
     bundles = collections.defaultdict(list)
@@ -385,6 +393,7 @@ def main():
     parser.add_argument('-c', '--configuration', nargs='?', const=judge_setting.DEFAULT_ENVIRONMENT, metavar='ENVIRONMENT', help=f'Create configuration for a specified environment (default: {judge_setting.DEFAULT_ENVIRONMENT})')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-s', '--source', nargs='*', required=True, help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
+    parser.add_argument('-ff', '--filled_form', nargs='?', const='form_filled_all.ipynb', help='Generate an all-filled form (default: form_filled_all.ipynb)')
     commandline_options = parser.parse_args()
     if commandline_options.verbose:
         logging.getLogger().setLevel('DEBUG')
@@ -405,6 +414,10 @@ def main():
     if commandline_options.configuration:
         logging.info('[INFO] Creating configuration...')
         create_configuration(exercises, commandline_options.configuration)
+
+    if commandline_options.filled_form:
+        logging.info(f'[INFO] Creating filled form `{commandline_options.filled_form}` ...')
+        create_filled_form(exercises, commandline_options.filled_form)
 
 if __name__ == '__main__':
     main()
