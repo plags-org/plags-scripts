@@ -307,7 +307,7 @@ def create_bundled_forms(exercise_bundles):
             body.extend(exercise.content)
             body.append(exercise.submission_cell())
             body.extend(exercise.student_tests)
-        filepath = os.path.join(dirpath, f'{dirname}.ipynb')
+        filepath = os.path.join(dirpath, f'form_{dirname}.ipynb')
         key_to_ver = {ex.key: ex.version for ex in exercises if ex.submission_redirection() is None}
         metadata = ipynb_metadata.submission_metadata(key_to_ver, True)
         ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in itertools.chain(intro, body)], metadata)
