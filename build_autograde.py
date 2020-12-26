@@ -10,7 +10,7 @@ import argparse
 import dataclasses
 import collections
 import copy
-from typing import List, Iterable, Tuple
+from typing import List, Iterable, Tuple, Callable
 
 import json
 import hashlib
@@ -100,7 +100,7 @@ class Exercise:
     answer_examples: List[Cell]          # List of (filename, content, original code cell)
     student_tests: List[Cell]            # List of cells
     system_test_cases: List[Tuple[str,str,Cell]] # List of (filename, content, original code cell)
-    system_test_setting: object          # JSON generated from Python code
+    system_test_setting: Callable        # judge_setting.generate created from Python code
 
     def submission_redirection(self):
         m = re.match(r'#[ \t]*redirect-to[ \t]*:[ \t]*(\S+?\.ipynb)', self.student_code_cell.source)
@@ -118,12 +118,9 @@ class Exercise:
         s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_examples[0].source if self.answer_examples else self.student_code_cell.source)
         return Cell(CellType.CODE, s)
 
-    def generate_setting(self, environment):
-        setting = copy.deepcopy(self.system_test_setting)
-        setting['metadata'] = {'name': self.key, 'version': self.version}
-        setting['front']['initial_source'] = self.student_code_cell.source
-        setting['judge']['environment']['name'] = environment
-        return setting
+    def generate_setting(self, environment, time_limit, memory_limit):
+        return self.system_test_setting(environment, time_limit, memory_limit, self.key, self.version, self.student_code_cell.source)
+
 
 def split_file_code_cell(cell: Cell):
     assert cell.cell_type == CellType.CODE
@@ -135,7 +132,7 @@ def split_file_code_cell(cell: Cell):
 
 def load_system_test_setting(cells: List[Cell]):
     exec(cells[0].source, {'generate_system_test_setting': judge_setting.generate_system_test_setting})
-    return judge_setting.output #TODO: schema validation
+    return judge_setting.generate
 
 def split_cells(raw_cells: Iterable[dict]):
     CONTENT_TYPE_REGEX = r'\*\*\*CONTENT_TYPE:\s*(.+?)\*\*\*'
@@ -251,32 +248,30 @@ def summarize_testcases(exercise: Exercise):
     contents.pop()
     return Cell(CellType.CODE, '\n'.join(contents))
 
-def create_exercise_configuration(exercise: Exercise, environment: str):
+def create_exercise_configuration(exercise: Exercise, options: dict):
     tests_dir = os.path.join(CONF_DIR, exercise.key)
     os.makedirs(tests_dir, exist_ok=True)
 
     cells = [x.to_ipynb() for x in itertools.chain(exercise.content, [exercise.student_code_cell])]
     _, metadata = ipynb_util.load_cells(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), True)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
+    setting = exercise.generate_setting(**options)
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
-        json.dump(exercise.generate_setting(environment), f, indent=1, ensure_ascii=False)
+        json.dump(setting, f, indent=1, ensure_ascii=False)
     for name, content, _ in exercise.system_test_cases:
         with open(os.path.join(tests_dir, name), 'w', encoding='utf-8', newline='\n') as f:
             f.write(content)
 
-    require_files = set()
-    for x in exercise.system_test_setting['judge']['evaluation_dag']['states'].values():
-        require_files.update(x['require_files'])
-    for path in require_files:
+    for path in judge_setting.required_files(setting):
         dest = os.path.join(tests_dir, path)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(os.path.join(exercise.dirpath, path), dest)
 
-def create_configuration(exercises: Iterable[Exercise], environment: str):
+def create_configuration(exercises: Iterable[Exercise], options: dict):
     shutil.rmtree(CONF_DIR, ignore_errors=True)
     for exercise in exercises:
         logging.info(f'[INFO] Creating configuration for `{exercise.key}` ...')
-        create_exercise_configuration(exercise, environment)
+        create_exercise_configuration(exercise, options)
 
     logging.info(f'[INFO] Creating configuration zip `{CONF_DIR}.zip` ...')
     with zipfile.ZipFile(CONF_DIR + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -386,11 +381,12 @@ def load_sources(source_paths: Iterable[str]):
             logging.info(f'[INFO] Loaded `{filepath}`')
     return exercises, bundles
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
     parser.add_argument('-d', '--deadline', metavar='DEADLINE_JSON', help='Specify a JSON file of deadline configuration.')
-    parser.add_argument('-c', '--configuration', nargs='?', const=judge_setting.DEFAULT_ENVIRONMENT, metavar='ENVIRONMENT', help=f'Create configuration for a specified environment (default: {judge_setting.DEFAULT_ENVIRONMENT})')
+    parser.add_argument('-c', '--configuration', nargs=3, metavar=('ENVIRONMENT', 'TIME_LIMIT', 'MEMORY_LIMIT'), help='Create configuration with specified parameters.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-s', '--source', nargs='*', required=True, help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
     parser.add_argument('-ff', '--filled_form', nargs='?', const='form_filled_all.ipynb', help='Generate an all-filled form (default: form_filled_all.ipynb)')
@@ -412,8 +408,13 @@ def main():
     create_single_forms(separates)
 
     if commandline_options.configuration:
-        logging.info('[INFO] Creating configuration...')
-        create_configuration(exercises, commandline_options.configuration)
+        options = {
+            'environment': commandline_options.configuration[0],
+            'time_limit': int(commandline_options.configuration[1]),
+            'memory_limit': int(commandline_options.configuration[2])
+        }
+        logging.info(f'[INFO] Creating configuration with `{repr(options)}` ...')
+        create_configuration(exercises, options)
 
     if commandline_options.filled_form:
         logging.info(f'[INFO] Creating filled form `{commandline_options.filled_form}` ...')
