@@ -9,7 +9,6 @@ import zipfile
 import argparse
 import dataclasses
 import collections
-import copy
 from typing import List, Iterable, Tuple, Callable
 
 import json
@@ -61,17 +60,15 @@ class FieldProperty(enum.Flag):
     FILE = enum.auto()
     CODE = enum.auto()
 
-FIELD_PROPERTIES = {
-    FieldKey.WARNING: FieldProperty(0),
-    FieldKey.CONTENT: FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED,
-    FieldKey.STUDENT_CODE_CELL: FieldProperty.SINGLE | FieldProperty.CODE,
-    FieldKey.EXPLANATION: FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED | FieldProperty.OPTIONAL,
-    FieldKey.ANSWER_EXAMPLES: FieldProperty.LIST | FieldProperty.OPTIONAL,
-    FieldKey.STUDENT_TESTS: FieldProperty.LIST | FieldProperty.OPTIONAL,
-    FieldKey.SYSTEM_TEST_CASES: FieldProperty.LIST | FieldProperty.FILE,
-    FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL: FieldProperty.SINGLE | FieldProperty.CODE,
-    FieldKey.SYSTEM_TEST_SETTING: FieldProperty.SINGLE,
-}
+FieldKey.WARNING.properties = FieldProperty(0)
+FieldKey.CONTENT.properties = FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED
+FieldKey.STUDENT_CODE_CELL.properties = FieldProperty.SINGLE | FieldProperty.CODE
+FieldKey.EXPLANATION.properties = FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED | FieldProperty.OPTIONAL
+FieldKey.ANSWER_EXAMPLES.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
+FieldKey.STUDENT_TESTS.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
+FieldKey.SYSTEM_TEST_CASES.properties = FieldProperty.LIST | FieldProperty.FILE
+FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL.properties = FieldProperty.SINGLE | FieldProperty.CODE
+FieldKey.SYSTEM_TEST_SETTING.properties = FieldProperty.SINGLE
 
 CellType = ipynb_util.NotebookCellType
 
@@ -155,14 +152,13 @@ def split_cells(raw_cells: Iterable[dict]):
             assert current_key is not None
             cells.append(Cell(cell_type, source))
             continue
-        assert len(matches) == 1, f'Multiple FieldKey found in cell `{source}`.'
+        assert len(matches) == 1, f'Multiple field keys found in cell `{source}`.'
 
-        if current_key is None:
-            current_key = getattr(FieldKey, matches[0][1])
-        else:
+        if current_key is not None:
             results[current_key] = cells
-            current_key = getattr(FieldKey, matches[0][1])
             cells = []
+        current_key = matches[0][1]
+
     results[current_key] = cells
     return results
 
@@ -171,37 +167,37 @@ def load_exercise(dirpath, exercise_key):
     version = ipynb_metadata.master_metadata_version(metadata)
     exercise_kwargs = {'key': exercise_key, 'dirpath': dirpath, 'version': version}
     for field_key, cells in split_cells(raw_cells).items():
-        if field_key in (FieldKey.WARNING, FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL):
+        field_enum = getattr(FieldKey, field_key)
+        if field_enum in (FieldKey.WARNING, FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL):
             continue
-        logging.debug(f'[TRACE] Validate FieldKey `{field_key.name}`')
+        logging.debug(f'[TRACE] Validate field `{field_key}`')
 
-        prop = FIELD_PROPERTIES[field_key]
-        if (FieldProperty.OPTIONAL | FieldProperty.OPTIONAL) in prop:
+        if (FieldProperty.OPTIONAL | FieldProperty.OPTIONAL) in field_enum.properties:
             pass
-        elif (FieldProperty.OPTIONAL) in prop:
-            assert len(cells) <= 1, f'FieldKey `{field_key.name}` must have at most 1 cell but has {len(cells)}.'
-        elif FieldProperty.LIST in prop:
-            assert len(cells) > 0, f'FieldKey `{field_key.name}` must not be empty.'
-        elif FieldProperty.SINGLE in prop:
-            assert len(cells) == 1, f'FieldKey `{field_key.name}` must have 1 cell.'
+        elif (FieldProperty.OPTIONAL) in field_enum.properties:
+            assert len(cells) <= 1, f'Field of `{field_key}` must have at most 1 cell but has {len(cells)}.'
+        elif FieldProperty.LIST in field_enum.properties:
+            assert len(cells) > 0, f'Field of `{field_key}` must not be empty.'
+        elif FieldProperty.SINGLE in field_enum.properties:
+            assert len(cells) == 1, f'Field of `{field_key}` must have 1 cell.'
 
-        if FieldProperty.CODE in prop:
-            assert all(x.cell_type == CellType.CODE for x in cells), f'FieldKey `{field_key.name}` must have only code cell(s).'
+        if FieldProperty.CODE in field_enum.properties:
+            assert all(x.cell_type == CellType.CODE for x in cells), f'Field of `{field_key}` must have only code cell(s).'
 
-        if len(cells) > 0 and FieldProperty.MARKDOWN_HEADED in prop:
+        if len(cells) > 0 and FieldProperty.MARKDOWN_HEADED in field_enum.properties:
             assert cells[0].cell_type == CellType.MARKDOWN
             first_line_regex = r'#+\s+(.*)'
             first_line = cells[0].source.strip().splitlines()[0]
             m = re.fullmatch(first_line_regex, first_line)
             assert m is not None, f'The first content cell does not start with a heading in Markdown: `{first_line}`.'
-            if field_key == FieldKey.CONTENT:
+            if field_enum == FieldKey.CONTENT:
                 exercise_kwargs['title'] = m.groups()[0]
 
-        exercise_kwargs[field_key.name.lower()] = {
+        exercise_kwargs[field_key.lower()] = {
             FieldKey.SYSTEM_TEST_SETTING: lambda: load_system_test_setting(cells),
             FieldKey.SYSTEM_TEST_CASES: lambda: [split_file_code_cell(x) for x in cells],
             FieldKey.STUDENT_CODE_CELL: lambda: cells[0],
-        }.get(field_key, lambda: cells)()
+        }.get(field_enum, lambda: cells)()
 
     return Exercise(**exercise_kwargs)
 
@@ -348,7 +344,7 @@ def create_filled_form(exercises: Iterable[Exercise], filepath):
     metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version for ex in exercises}, True)
     ipynb_util.save_as_notebook(filepath, [ex.submission_cell_filled().to_ipynb() for ex in exercises], metadata)
 
-def load_sources(source_paths: Iterable[str]):
+def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
     exercises = []
     bundles = collections.defaultdict(list)
     existing_keys = {}
@@ -365,7 +361,7 @@ def load_sources(source_paths: Iterable[str]):
                 assert exercise_key not in existing_keys, \
                     f'[ERROR] Exercise key conflicts between `{dirpath}/{nb}` and `{existing_keys[exercise_key]}`.'
                 existing_keys[exercise_key] = os.path.join(dirpath, nb)
-                bundles[dirpath].append(load_exercise(dirpath, exercise_key))
+                bundles[dirpath].append(master_loader(dirpath, exercise_key))
                 logging.info(f'[INFO] Loaded `{dirpath}/{nb}`')
         else:
             filepath = path
@@ -377,7 +373,7 @@ def load_sources(source_paths: Iterable[str]):
             assert exercise_key not in existing_keys, \
                 f'[ERROR] Exercise key conflicts between `{filepath}` and `{existing_keys[exercise_key]}`.'
             existing_keys[exercise_key] = filepath
-            exercises.append(load_exercise(dirpath, exercise_key))
+            exercises.append(master_loader(dirpath, exercise_key))
             logging.info(f'[INFO] Loaded `{filepath}`')
     return exercises, bundles
 
