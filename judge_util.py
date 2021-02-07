@@ -13,9 +13,13 @@ class LoopFoundException(Exception):
 class CongruenceException(Exception):
     pass
 
-def raise_if_null_function(f, offset_indent=0):
-    src = '\n'.join(x[offset_indent:] for x in inspect.getsource(f).splitlines())
-    for node in ast.walk(ast.parse(src)):
+def _func_source(f):
+    src_lines = inspect.getsource(f).splitlines()
+    offset_indent = len(src_lines[0]) - len(src_lines[0].lstrip(' '))
+    return '\n'.join(x[offset_indent:] for x in src_lines)
+
+def raise_if_null_function(f):
+    for node in ast.walk(ast.parse(_func_source(f))):
         if type(node) == ast.FunctionDef \
            and node.name == f.__name__ \
            and len(node.body) == 1 \
@@ -28,8 +32,7 @@ def raise_if_null_function(f, offset_indent=0):
                 raise NullFunctionException
 
 def raise_if_loop_exists(f):
-    source = inspect.getsource(f)
-    node_types = {type(n) for n in ast.walk(ast.parse(source))}
+    node_types = {type(n) for n in ast.walk(ast.parse(_func_source(f)))}
     if ast.For in node_types:
         raise LoopFoundException('For loop found')
     if ast.While in node_types:
@@ -46,7 +49,7 @@ def raise_if_congruent(f, g):
             return x.id == y.id or name_map.get(x.id) == y.id
         return True
     def ast_nodes(h):
-        return ast.walk(ast.parse(inspect.getsource(h)))
+        return ast.walk(ast.parse(_func_source(h)))
     if all(eq(n, m) or n == m for n, m in zip(ast_nodes(f), ast_nodes(g))):
         raise CongruenceException
 
