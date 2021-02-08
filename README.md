@@ -164,7 +164,7 @@ exercise_keyの実体はipynbのメタデータにあるので，一旦メタデ
 
 ### ipynbのレンダリングについて
 
-PLAGS UTは，ipynbのレンダリングに [nbviewer.js](https://github.com/kokes/nbviewer.js) を用いている．これは，必ずしもJupyterと同じレンダリングをするわけではない．とりわけ，displayの数式（`$$ ... $$`）については，表示が壊れることが確認されている．表示調整の試行錯誤の際には，[nbviewer.js live demo](https://kokes.github.io/nbviewer.js/viewer.html)で，formのレンダリングを確認すると手際が良い．
+PLAGS UTは，ipynbのレンダリングに [nbviewer.js](https://github.com/kokes/nbviewer.js) を用いている．これは，必ずしもJupyterと同じレンダリングをするわけではない．表示調整の試行錯誤の際には，[nbviewer.js live demo](https://kokes.github.io/nbviewer.js/viewer.html)で，formのレンダリングを確認すると手際が良い．
 
 ## 課題のバージョン
 
