@@ -7,7 +7,7 @@ def generate_system_test_setting(testlist):
         states = {
             name: {
                 'runner': {
-                    'name': 'test_runner_py37_unittest.py',
+                    'name': 'test_runner_py37_unittest_v2.py',
                     'version': '',
                     'options': {'evaluation_style': 'append'}
                 },
@@ -15,7 +15,7 @@ def generate_system_test_setting(testlist):
                 'require_files': require_files,
                 'result_aggregation': {'grade': 'min'},
                 'transitions': [
-                    (('$forall', ('CO', 'CS')), testlist[i+1][0] if i + 1 < len(testlist) else 'accept')
+                    (('$forall', ('pass',)), testlist[i+1][0] if i + 1 < len(testlist) else 'accept')
                 ]
             } for i, (name, require_files) in enumerate(testlist)
         }

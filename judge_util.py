@@ -4,54 +4,45 @@ import ast, inspect
 import unittest
 import sys, io
 
-class NullFunctionException(Exception):
-    pass
-
-class LoopFoundException(Exception):
-    pass
-
-class CongruenceException(Exception):
-    pass
 
 def _func_source(f):
     src_lines = inspect.getsource(f).splitlines()
     offset_indent = len(src_lines[0]) - len(src_lines[0].lstrip(' '))
     return '\n'.join(x[offset_indent:] for x in src_lines)
 
-def raise_if_null_function(f):
-    for node in ast.walk(ast.parse(_func_source(f))):
-        if type(node) == ast.FunctionDef \
-           and node.name == f.__name__ \
-           and len(node.body) == 1 \
-           and type(node.body[0]) == ast.Expr:
-            if type(node.body[0].value) == ast.Ellipsis: #NOTE: Deprecated in 3.8
-                # Python <= 3.7
-                raise NullFunctionException
-            if type(node.body[0].value) == ast.Constant and node.body[0].value.value == ...:
-                # Python >= 3.8
-                raise NullFunctionException
 
-def raise_if_loop_exists(f):
-    node_types = {type(n) for n in ast.walk(ast.parse(_func_source(f)))}
-    if ast.For in node_types:
-        raise LoopFoundException('For loop found')
-    if ast.While in node_types:
-        raise LoopFoundException('While loop found')
+def is_ellipsis_body(f):
+    node = next(n for n in ast.walk(ast.parse(_func_source(f))) if type(n) == ast.FunctionDef and n.name == f.__name__)
+    def is_ellipsis(s):
+        if type(s) == ast.Expr:
+            b1 = type(s.value) == ast.Ellipsis # Python <= 3.7 (Deprecated in 3.8)
+            b2 = type(s.value) == ast.Constant and s.value.value == ... # Python >= 3.8
+            return b1 or b2
+        else:
+            return False
+    return all(is_ellipsis(s) for s in node.body)
 
-def raise_if_congruent(f, g):
-    name_map = {f.__name__:  g.__name__}
+
+def find_loop(f):
+    for n in  ast.walk(ast.parse(_func_source(f))):
+        if type(n) == ast.For:
+            return n
+        if type(n) == ast.While:
+            return n
+
+
+def congruent(f, g):
+    alias_map = {f.__name__: g.__name__, g.__name__: f.__name__}
     def eq(x, y):
         if type(x) != type(y):
             return False
         if type(x) == ast.Constant:
             return x.value == y.value
         if type(x) == ast.Name:
-            return x.id == y.id or name_map.get(x.id) == y.id
+            return x.id == y.id or alias_map.get(x.id) == y.id
         return True
-    def ast_nodes(h):
-        return ast.walk(ast.parse(_func_source(h)))
-    if all(eq(n, m) or n == m for n, m in zip(ast_nodes(f), ast_nodes(g))):
-        raise CongruenceException
+    return all(eq(n, m) or n == m for n, m in zip(*(ast.walk(ast.parse(_func_source(x))) for x in [f, g])))
+
 
 def testcase(score=1):
     class JudgeTestCase(unittest.TestCase):
@@ -59,23 +50,37 @@ def testcase(score=1):
     JudgeTestCase.score = score
     return JudgeTestCase
 
-def _gen_testmethod_decorator(kind, testcase_cls):
-    assert kind in 'CO'
+
+def _test_method_name(name, ok_score, fail_score, ok_tag=None, fail_tag=None):
+    return f'test_{ok_tag}_{ok_score}_{fail_tag}_{fail_score}_{name}'
+
+
+def check_method(testcase_cls, fail_tag=None):
     assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
-
     def decorator(func):
-        name = f'test_{kind}_{testcase_cls.score}_0_{func.__name__}'
-        method = staticmethod(func) if kind == 'C' else func
-        setattr(testcase_cls, name, method)
+        name = _test_method_name(func.__name__, testcase_cls.score, 0, None, fail_tag)
+        setattr(testcase_cls, name, func)
         return func
-
     return decorator
 
-def precheck(testcase_cls):
-    return _gen_testmethod_decorator('C', testcase_cls)
 
-def testmethod(testcase_cls):
-    return _gen_testmethod_decorator('O', testcase_cls)
+def test_method(testcase_cls):
+    assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
+    def decorator(func):
+        name = _test_method_name(func.__name__, testcase_cls.score, 0, 'CO', 'IO')
+        setattr(testcase_cls, name, func)
+        return func
+    return decorator
+
+
+def tagging_method(testcase_cls, ok_tag):
+    assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
+    def decorator(func):
+        name = _test_method_name(func.__name__, testcase_cls.score, testcase_cls.score, ok_tag, None)
+        setattr(testcase_cls, name, func)
+        return func
+    return decorator
+
 
 _argument_log = io.StringIO()
 
