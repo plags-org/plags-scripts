@@ -99,7 +99,7 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `fo
 アップロード用設定ファイル `autograde.zip` を生成するには，アップロード対象のmaster全てを対象に指定して，`-c` オプションで実行する．
 
 ```sh
-./build_autograde.py -c ${env} ${time} ${memory} -s exercises_autograde/ex1*
+./build_autograde.py -c judge_env.json -s exercises_autograde/ex1*
 ```
 
 **効果**：
@@ -111,7 +111,7 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `fo
 
 `autograde.zip` を作成する際に，副産物として `autograde/` を作るが，ビルド用ディレクトリなので消して問題ない．
 
-`-c` の引数は，自動評価環境のパラメタであり，PLAGS UTの管理者によって指定される．
+`-c` の引数 `judge_env.json` は，自動評価環境のパラメタをまとめたJSONファイルであり，PLAGS UTの管理者によって指定される．
 
 ### as-isのビルド
 

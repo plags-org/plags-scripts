@@ -115,8 +115,19 @@ class Exercise:
         s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_examples[0].source if self.answer_examples else self.student_code_cell.source)
         return Cell(CellType.CODE, s)
 
-    def generate_setting(self, environment, time_limit, memory_limit):
-        return self.system_test_setting(environment, time_limit, memory_limit, self.key, self.version, self.student_code_cell.source)
+    def generate_setting(self):
+        params = {k: self.judge_parameters['override'].get(self.key, {}).get(k, v) for k, v in self.judge_parameters['default'].items()}
+        return self.system_test_setting(params['environment'], params['time_limit'], params['memory_limit'], self.key, self.version, self.student_code_cell.source)
+
+    @classmethod
+    def load_judge_parameters(cls, json_path):
+        with open(json_path, encoding='utf-8') as f:
+            judge_env = json.load(f)
+        params = ('environment', 'time_limit', 'memory_limit')
+        cls.judge_parameters = {
+            'default': {k: judge_env['default'][k] for k in params},
+            'override': {ex_key: {k: d[k] for k in params if k in d} for ex_key, d in judge_env['override'].items()},
+        }
 
 
 def split_file_code_cell(cell: Cell):
@@ -244,14 +255,14 @@ def summarize_testcases(exercise: Exercise):
     contents.pop()
     return Cell(CellType.CODE, '\n'.join(contents))
 
-def create_exercise_configuration(exercise: Exercise, options: dict):
+def create_exercise_configuration(exercise: Exercise):
     tests_dir = os.path.join(CONF_DIR, exercise.key)
     os.makedirs(tests_dir, exist_ok=True)
 
     cells = [x.to_ipynb() for x in itertools.chain(exercise.content, [exercise.student_code_cell])]
     _, metadata = ipynb_util.load_cells(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), True)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
-    setting = exercise.generate_setting(**options)
+    setting = exercise.generate_setting()
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
         json.dump(setting, f, indent=1, ensure_ascii=False)
     for name, content, _ in exercise.system_test_cases:
@@ -263,11 +274,11 @@ def create_exercise_configuration(exercise: Exercise, options: dict):
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(os.path.join(exercise.dirpath, path), dest)
 
-def create_configuration(exercises: Iterable[Exercise], options: dict):
+def create_configuration(exercises: Iterable[Exercise]):
     shutil.rmtree(CONF_DIR, ignore_errors=True)
     for exercise in exercises:
         logging.info(f'[INFO] Creating configuration for `{exercise.key}` ...')
-        create_exercise_configuration(exercise, options)
+        create_exercise_configuration(exercise)
 
     logging.info(f'[INFO] Creating configuration zip `{CONF_DIR}.zip` ...')
     with zipfile.ZipFile(CONF_DIR + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -381,8 +392,8 @@ def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
-    parser.add_argument('-d', '--deadline', metavar='DEADLINE_JSON', help='Specify a JSON file of deadline configuration.')
-    parser.add_argument('-c', '--configuration', nargs=3, metavar=('ENVIRONMENT', 'TIME_LIMIT', 'MEMORY_LIMIT'), help='Create configuration with specified parameters.')
+    parser.add_argument('-d', '--deadline', metavar='DEADLINE_JSON', help='Specify a JSON file of deadline settings.')
+    parser.add_argument('-c', '--configuration', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-s', '--source', nargs='*', required=True, help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
     parser.add_argument('-ff', '--filled_form', nargs='?', const='form_filled_all.ipynb', help='Generate an all-filled form (default: form_filled_all.ipynb)')
@@ -404,13 +415,9 @@ def main():
     create_single_forms(separates)
 
     if commandline_options.configuration:
-        options = {
-            'environment': commandline_options.configuration[0],
-            'time_limit': int(commandline_options.configuration[1]),
-            'memory_limit': int(commandline_options.configuration[2])
-        }
-        logging.info(f'[INFO] Creating configuration with `{repr(options)}` ...')
-        create_configuration(exercises, options)
+        Exercise.load_judge_parameters(commandline_options.configuration)
+        logging.info(f'[INFO] Creating configuration with `{repr(Exercise.judge_parameters)}` ...')
+        create_configuration(exercises)
 
     if commandline_options.filled_form:
         logging.info(f'[INFO] Creating filled form `{commandline_options.filled_form}` ...')
