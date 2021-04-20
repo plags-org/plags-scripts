@@ -36,11 +36,6 @@ SUBMISSION_CELL_FORMAT = """
 
 {content}""".strip()
 
-REDIRECTION_CELL_FORMAT = """
-# このセルではなく {redirect_to} を使ってください
-# Use {redirect_to} instead of this cell
-""".strip()
-
 class FieldKey(enum.Enum):
     WARNING = enum.auto()
     CONTENT = enum.auto()
@@ -99,16 +94,8 @@ class Exercise:
     system_test_cases: List[Tuple[str,str,Cell]] # List of (filename, content, original code cell)
     system_test_setting: Callable        # judge_setting.generate created from Python code
 
-    def submission_redirection(self):
-        m = re.match(r'#[ \t]*redirect-to[ \t]*:[ \t]*(\S+?\.ipynb)', self.student_code_cell.source)
-        return m[1] if m else None
-
     def submission_cell(self):
-        redirect_to = self.submission_redirection()
-        if redirect_to:
-            s = REDIRECTION_CELL_FORMAT.format(redirect_to=redirect_to)
-        else:
-            s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.student_code_cell.source)
+        s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.student_code_cell.source)
         return Cell(CellType.CODE, s)
 
     def submission_cell_filled(self):
@@ -314,13 +301,9 @@ def create_bundled_forms(exercise_bundles):
             body.append(exercise.submission_cell())
             body.extend(exercise.student_tests)
         filepath = os.path.join(dirpath, f'form_{dirname}.ipynb')
-        key_to_ver = {ex.key: ex.version for ex in exercises if ex.submission_redirection() is None}
+        key_to_ver = {ex.key: ex.version for ex in exercises}
         metadata = ipynb_metadata.submission_metadata(key_to_ver, True)
         ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in itertools.chain(intro, body)], metadata)
-
-        for ex in exercises:
-            if ex.submission_redirection():
-                create_redirect_form(ex)
 
 def create_single_forms(exercises: Iterable[Exercise]):
     for ex in exercises:
@@ -332,24 +315,9 @@ def create_single_forms(exercises: Iterable[Exercise]):
 
         # Create form
         cells = itertools.chain(ex.content, [ex.submission_cell()], ex.student_tests)
-        if ex.submission_redirection() is None:
-            filepath = os.path.join(ex.dirpath, f'form_{ex.key}.ipynb')
-            metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version}, True)
-        else:
-            create_redirect_form(ex)
-            filepath = os.path.join(ex.dirpath, f'pseudo-form_{ex.key}.ipynb')
-            metadata = ipynb_metadata.COMMON_METADATA
+        filepath = os.path.join(ex.dirpath, f'form_{ex.key}.ipynb')
+        metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version}, True)
         ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in cells], metadata)
-
-def create_redirect_form(exercise: Exercise):
-    redirect_to = exercise.submission_redirection()
-    filepath = os.path.join(exercise.dirpath, redirect_to)
-    cells, _ = ipynb_util.load_cells(filepath, True)
-    assert any(re.search(rf'<\[ {exercise.key} \]>', line)
-               for c in cells if c['cell_type'] == CellType.CODE.value for line in c['source']), \
-        f'{redirect_to} has no answer cell for {exercise.key}.'
-    metadata = ipynb_metadata.submission_metadata({exercise.key: exercise.version}, True)
-    ipynb_util.save_as_notebook(filepath, cells, metadata)
 
 def create_filled_form(exercises: Iterable[Exercise], filepath):
     metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version for ex in exercises}, True)
