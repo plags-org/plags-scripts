@@ -397,6 +397,7 @@ def main():
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-s', '--source', nargs='*', required=True, help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
     parser.add_argument('-ff', '--filled_form', nargs='?', const='form_filled_all.ipynb', help='Generate an all-filled form (default: form_filled_all.ipynb)')
+    parser.add_argument('-lp', '--library_placement', nargs='?', metavar='LIBDIR', const='.judge', help='Place judge_util.py for each exercise into LIBDIR (default: .judge).')
     commandline_options = parser.parse_args()
     if commandline_options.verbose:
         logging.getLogger().setLevel('DEBUG')
@@ -413,6 +414,14 @@ def main():
     create_bundled_forms(bundles)
     logging.info('[INFO] Creating separate forms...')
     create_single_forms(separates)
+
+    if commandline_options.library_placement:
+        import judge_util
+        for dirpath in {ex.dirpath for ex in exercises}:
+            dst = os.path.join(dirpath, commandline_options.library_placement)
+            os.makedirs(dst, exist_ok=True)
+            shutil.copy2(judge_util.__file__, dst)
+            logging.info(f'[INFO] Placed `{dst}/judge_util.py`')
 
     if commandline_options.configuration:
         Exercise.load_judge_parameters(commandline_options.configuration)
