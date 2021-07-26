@@ -64,6 +64,20 @@ def check_method(testcase_cls, fail_tag=None):
     return decorator
 
 
+def name_error_trap(testcase_cls, fail_tag=None):
+    assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
+    def decorator(func):
+        name = _test_method_name(func.__name__, testcase_cls.score, 0, None, fail_tag)
+        def wrapper(self):
+            try:
+                func()
+            except NameError:
+                self.fail()
+        setattr(testcase_cls, name, wrapper)
+        return func
+    return decorator
+
+
 def test_method(testcase_cls):
     assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
     def decorator(func):
