@@ -1,0 +1,15 @@
+{
+    "ex1-3-find_nearest_str": {
+        "begins_at": "YYYY-MM-DD hh:mm:ss",
+        "opens_at":  "YYYY-MM-DD hh:mm:ss",
+        "checks_at": "YYYY-MM-DD hh:mm:ss",
+        "closes_at": "YYYY-MM-DD hh:mm:ss",
+        "ends_at":   "YYYY-MM-DD hh:mm:ss"
+    },
+    "ex1/": {
+        "opens_at":  "YYYY-MM-DD hh:mm:ss",
+        "closes_at": "YYYY-MM-DD hh:mm:ss"
+    },
+    "ex2": {
+    }
+}

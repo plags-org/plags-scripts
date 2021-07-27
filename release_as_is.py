@@ -17,16 +17,16 @@ ARCHIVE = 'as-is_masters'
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--deadline', metavar='DEADLINE_JSON', help='Specify a JSON file of deadline configuration.')
+    parser.add_argument('-d', '--deadlines', metavar='DEADLINES_JSON', help='Specify a JSON file of deadline settings.')
     parser.add_argument('-c', '--compress_masters', action='store_true', help='Create a zip archive of masters.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-s', '--source', nargs='*', required=True, help='Specify source ipynb file(s).')
     commandline_args = parser.parse_args()
 
-    deadline_new = None
-    if commandline_args.deadline:
-        with open(commandline_args.deadline, encoding='utf-8') as f:
-            deadline_new = json.load(f)
+    new_deadlines = {}
+    if commandline_args.deadlines:
+        with open(commandline_args.deadlines, encoding='utf-8') as f:
+            new_deadlines = json.load(f)
 
     existing_keys = {}
     for filepath in commandline_args.source:
@@ -35,7 +35,7 @@ def main():
         assert key not in existing_keys, \
             f'[ERROR] Exercise key conflicts between `{filepath}` and `{existing_keys[key]}`.'
         existing_keys[key] = filepath
-        release_ipynb(filepath, deadline_new, commandline_args.renew_version)
+        release_ipynb(filepath, new_deadlines, commandline_args.renew_version)
 
     if commandline_args.compress_masters:
         with zipfile.ZipFile(ARCHIVE + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -45,26 +45,30 @@ def main():
         logging.info(f'[INFO] Released {ARCHIVE}.zip')
 
 
-def release_ipynb(master_path, deadline, renew_version):
+def release_ipynb(master_path, new_deadlines, new_version):
     key, ext = os.path.splitext(os.path.basename(master_path))
     cells, metadata = ipynb_util.load_cells(master_path, True)
     title = extract_first_heading(cells)
     version = ipynb_metadata.master_metadata_version(metadata)
-    if renew_version is not None:
-        logging.info(f'[INFO] Renew version of `{master_path}`')
-        if renew_version == hashlib.sha1:
-            m = hashlib.sha1()
-            m.update(json.dumps(cells).encode())
-            version = m.hexdigest()
-        else:
-            assert isinstance(commandline_args.renew_version, str)
-            version = commandline_args.renew_version
-    if deadline is None:
-        deadline = ipynb_metadata.master_metadata_deadlines(metadata)
+
+    if new_version is None:
+        new_version = version
+    elif new_version == hashlib.sha1:
+        m = hashlib.sha1()
+        m.update(json.dumps(cells).encode())
+        new_version = m.hexdigest()
     else:
+        assert isinstance(new_version, str)
+    if new_version != version:
+        logging.info(f'[INFO] Renew version of `{master_path}`')
+        version = new_version
+
+    deadlines_cur = ipynb_metadata.master_metadata_deadlines(metadata)
+    deadlines = new_deadlines.get(key, deadlines_cur)
+    if deadlines != deadlines_cur:
         logging.info(f'[INFO] Renew deadline of `{master_path}`')
 
-    master_metadata = ipynb_metadata.master_metadata(key, False, version, title, deadline)
+    master_metadata = ipynb_metadata.master_metadata(key, False, version, title, deadlines)
     ipynb_util.save_as_notebook(master_path, cells, master_metadata)
     logging.info(f'[INFO] Released master `{master_path}`')
 

@@ -199,40 +199,6 @@ def load_exercise(dirpath, exercise_key):
 
     return Exercise(**exercise_kwargs)
 
-def cleanup_exercise_masters(exercises: Iterable[Exercise], commandline_options):
-    deadlines_new = None
-    if commandline_options.deadline:
-        with open(commandline_options.deadline, encoding='utf-8') as f:
-            deadlines_new = json.load(f)
-    for exercise in exercises:
-        filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
-        cells, metadata = ipynb_util.load_cells(filepath, True)
-        cells_new = [Cell(cell_type, source.strip()).to_ipynb() for cell_type, source in ipynb_util.normalized_cells(cells)]
-
-        if deadlines_new is None:
-            deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
-        else:
-            logging.info(f'[INFO] Renew deadline of {exercise.key}')
-            deadlines = deadlines_new
-
-        if commandline_options.renew_version is not None:
-            logging.info(f'[INFO] Renew version of {exercise.key}')
-            if commandline_options.renew_version == hashlib.sha1:
-                exercise_definition = {
-                    'content': [x.to_ipynb() for x in exercise.content],
-                    'submission_cell': exercise.submission_cell().to_ipynb(),
-                    'student_tests': [x.to_ipynb() for x in exercise.student_tests],
-                }
-                m = hashlib.sha1()
-                m.update(json.dumps(exercise_definition).encode())
-                exercise.version = m.hexdigest()
-            else:
-                assert isinstance(commandline_options.renew_version, str)
-                exercise.version = commandline_options.renew_version
-
-        metadata_new = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines)
-        ipynb_util.save_as_notebook(filepath, cells_new, metadata_new)
-
 def summarize_testcases(exercise: Exercise):
     contents = []
     is_not_decorator_line = lambda x: not x.startswith('@judge_util.')
@@ -357,10 +323,62 @@ def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
     return exercises, bundles
 
 
+def cleanup_exercise_master(exercise, new_version=None):
+    filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
+    cells, metadata = ipynb_util.load_cells(filepath, True)
+    cells_new = [Cell(cell_type, source.strip()).to_ipynb() for cell_type, source in ipynb_util.normalized_cells(cells)]
+
+    if new_version is None:
+        new_version = exercise.version
+    elif new_version == hashlib.sha1:
+        exercise_definition = {
+            'content': [x.to_ipynb() for x in exercise.content],
+            'submission_cell': exercise.submission_cell().to_ipynb(),
+            'student_tests': [x.to_ipynb() for x in exercise.student_tests],
+        }
+        m = hashlib.sha1()
+        m.update(json.dumps(exercise_definition).encode())
+        new_version = m.hexdigest()
+    else:
+        assert isinstance(new_version, str)
+
+    if new_version != exercise.version:
+        logging.info(f'[INFO] Renew version of {exercise.key}')
+        exercise.version = new_version
+
+    deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
+    metadata_new = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines)
+    ipynb_util.save_as_notebook(filepath, cells_new, metadata_new)
+
+
+def update_exercise_deadlines(separates, bundles, new_deadlines):
+    for exercise in separates:
+        filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
+        cells, metadata = ipynb_util.load_cells(filepath)
+        deadlines_cur = ipynb_metadata.master_metadata_deadlines(metadata)
+        deadlines = new_deadlines.get(exercise.key, deadlines_cur)
+        if deadlines != deadlines_cur:
+            logging.info(f'[INFO] Renew deadline of {exercise.key}')
+        metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines)
+        ipynb_util.save_as_notebook(filepath, cells, metadata)
+
+    for dirpath, exercises in bundles.items():
+        dirname = os.path.basename(dirpath)
+        for exercise in exercises:
+            filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
+            cells, metadata = ipynb_util.load_cells(filepath)
+            deadlines_cur = ipynb_metadata.master_metadata_deadlines(metadata)
+            deadlines = new_deadlines.get(f'{dirname}/', deadlines_cur)
+            if deadlines != deadlines_cur:
+                logging.info(f'[INFO] Renew deadline of bundle {dirname}/{exercise.key}')
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines)
+            ipynb_util.save_as_notebook(filepath, cells, metadata)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
-    parser.add_argument('-d', '--deadline', metavar='DEADLINE_JSON', help='Specify a JSON file of deadline settings.')
+    parser.add_argument('-d', '--deadlines', metavar='DEADLINES_JSON', help='Specify a JSON file of deadline settings.')
     parser.add_argument('-c', '--configuration', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-s', '--source', nargs='*', required=True, help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
@@ -376,7 +394,12 @@ def main():
     exercises = list(itertools.chain(*bundles.values(), separates))
 
     logging.info('[INFO] Cleaning up exercise masters...')
-    cleanup_exercise_masters(exercises, commandline_options)
+    for ex in exercises:
+        cleanup_exercise_master(ex, commandline_options.renew_version)
+
+    if commandline_options.deadlines:
+        with open(commandline_options.deadlines, encoding='utf-8') as f:
+            update_exercise_deadlines(separates, bundles, json.load(f))
 
     logging.info('[INFO] Creating bundled forms...')
     create_bundled_forms(bundles)
