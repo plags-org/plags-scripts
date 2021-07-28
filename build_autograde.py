@@ -347,11 +347,12 @@ def cleanup_exercise_master(exercise, new_version=None):
         exercise.version = new_version
 
     deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
-    metadata_new = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines)
+    drive = ipynb_metadata.master_metadata_drive(metadata)
+    metadata_new = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines, drive)
     ipynb_util.save_as_notebook(filepath, cells_new, metadata_new)
 
 
-def update_exercise_deadlines(separates, bundles, new_deadlines):
+def update_exercise_master_metadata_formwise(separates, bundles, new_deadlines, new_drive):
     for exercise in separates:
         filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
         cells, metadata = ipynb_util.load_cells(filepath)
@@ -359,7 +360,11 @@ def update_exercise_deadlines(separates, bundles, new_deadlines):
         deadlines = new_deadlines.get(exercise.key, deadlines_cur)
         if deadlines != deadlines_cur:
             logging.info(f'[INFO] Renew deadline of {exercise.key}')
-        metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines)
+        drive_cur = ipynb_metadata.master_metadata_drive(metadata)
+        drive = new_drive.get(exercise.key, drive_cur)
+        if drive != drive_cur:
+            logging.info(f'[INFO] Renew Google Drive ID/URL of {exercise.key}')
+        metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines, drive)
         ipynb_util.save_as_notebook(filepath, cells, metadata)
 
     for dirpath, exercises in bundles.items():
@@ -371,7 +376,11 @@ def update_exercise_deadlines(separates, bundles, new_deadlines):
             deadlines = new_deadlines.get(f'{dirname}/', deadlines_cur)
             if deadlines != deadlines_cur:
                 logging.info(f'[INFO] Renew deadline of bundle {dirname}/{exercise.key}')
-            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines)
+            drive_cur = ipynb_metadata.master_metadata_drive(metadata)
+            drive = new_drive.get(f'{dirname}/', drive_cur)
+            if drive != drive_cur:
+                logging.info(f'[INFO] Renew Google Drive ID/URL of bundle {dirname}/{exercise.key}')
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines, drive)
             ipynb_util.save_as_notebook(filepath, cells, metadata)
 
 
@@ -382,6 +391,7 @@ def main():
     parser.add_argument('-c', '--configuration', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-s', '--source', nargs='*', required=True, help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
+    parser.add_argument('-gd', '--google_drive', nargs='?', const='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
     parser.add_argument('-ff', '--filled_form', nargs='?', const='form_filled_all.ipynb', help='Generate an all-filled form (default: form_filled_all.ipynb)')
     parser.add_argument('-lp', '--library_placement', nargs='?', metavar='LIBDIR', const='.judge', help='Place judge_util.py for each exercise into LIBDIR (default: .judge).')
     commandline_options = parser.parse_args()
@@ -397,9 +407,16 @@ def main():
     for ex in exercises:
         cleanup_exercise_master(ex, commandline_options.renew_version)
 
+    deadlines = {}
     if commandline_options.deadlines:
         with open(commandline_options.deadlines, encoding='utf-8') as f:
-            update_exercise_deadlines(separates, bundles, json.load(f))
+            deadlines = json.load(f)
+    drive = {}
+    if commandline_options.google_drive:
+        with open(commandline_options.google_drive, encoding='utf-8') as f:
+            drive = json.load(f)
+    if deadlines or drive:
+        update_exercise_master_metadata_formwise(separates, bundles, deadlines, drive)
 
     logging.info('[INFO] Creating bundled forms...')
     create_bundled_forms(bundles)

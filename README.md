@@ -228,3 +228,32 @@ masterとformのメタデータには，課題のバージョンが埋め込ま�
 締切時刻の属性値は `null` も可能である．`null`の項目は，コースのデフォルト設定が使われる．属性値が `null` の項目は，締切時刻から省略できる．
 
 bundleモードでまとめられるautogradeに対しては，exercise_keyの代わりに，`/`付きのディレクトリ名を属性名に用いることで，一括で締切時刻を設定できる．上の例では，`"ex1/"`をキーにすることで，`exercises_autograde/ex1/ex1-{1,2}-find_nearest.ipynb`に対する締切を指定している．
+
+## Colabリンクの設定
+
+課題をアップロードした後，formのGoogle Drive IDをブラウザ上で指定することで，formをColabで開く ![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg) リンクをコースページに表示させることができる．このformのDrive IDについても，締切情報と同様に，masterのメタデータに埋め込むことで，一括で設定できる．
+
+### 設定方法
+
+`build_autograde.py` 及び `release_as_is.py` は，`-gd` オプションの引数として `drive.json` を指定できる．`-gd` を指定すると，`-s` で指定された対象のmaster全てについて，`drive.json` に従ってformのDrive IDを設定する．例えば，次のコマンドで設定できる．
+
+```sh
+./build_autograde.py -gd drive.json -s exercises_autograde/ex1*
+./release_as_is.py -gd drive.json -s exercises_as-is/ex2.ipynb
+```
+
+締切を設定する `-d` と同様に，`-gd` が指定されない場合や， `drive.json` の中に対象masterの項目が見つからなかった場合には，Drive IDは更新されない．
+
+### `drive.json`
+
+`drive.json` は，課題とDrive IDを対応付ける辞書である．具体的には，次のようになっている．
+
+```json
+{
+    "ex1-3-find_nearest_str": "https://drive.google.com/file/d/${DriveID}/view?usp=sharing",
+    "ex1/": "https://colab.research.google.com/drive/${DriveID}",
+    "ex2": "${DriveID}"
+}
+```
+
+課題を表す属性名は，`deadlines.json` と同様の規則で指定する．属性値には，上の例のように，Drive URL，Colab URL，Drive IDのいずれを設定しても，ブラウザ上の効果は同じである．属性値に `null` を設定すると，Colabリンクを削除できる．

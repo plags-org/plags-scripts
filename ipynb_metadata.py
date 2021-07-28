@@ -15,7 +15,7 @@ def submission_metadata(key_to_version, extraction: bool):
         **COMMON_METADATA,
     }
 
-def master_metadata(exercise_key: str, autograde: bool, version: str, title=None, deadlines=None):
+def master_metadata(exercise_key: str, autograde: bool, version: str, title=None, deadlines=None, drive=None):
     if title is None:
         title = exercise_key
     if deadlines is None:
@@ -25,6 +25,7 @@ def master_metadata(exercise_key: str, autograde: bool, version: str, title=None
         'judge_master': {
             'autograde': autograde,
             'deadlines': deadlines,
+            'drive': drive,
             'exercise_key': exercise_key,
             'title': title,
             'version': version,
@@ -38,3 +39,6 @@ def master_metadata_version(metadata):
 def master_metadata_deadlines(metadata):
     deadlines = metadata.get('judge_master', {}).get('deadlines', {})
     return {k: deadlines.get(k) for k in ('begins_at', 'opens_at', 'checks_at', 'closes_at', 'ends_at')}
+
+def master_metadata_drive(metadata):
+    return metadata.get('judge_master', {}).get('drive')

@@ -21,12 +21,17 @@ def main():
     parser.add_argument('-c', '--compress_masters', action='store_true', help='Create a zip archive of masters.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-s', '--source', nargs='*', required=True, help='Specify source ipynb file(s).')
+    parser.add_argument('-gd', '--google_drive', nargs='?', const='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
     commandline_args = parser.parse_args()
 
     new_deadlines = {}
     if commandline_args.deadlines:
         with open(commandline_args.deadlines, encoding='utf-8') as f:
             new_deadlines = json.load(f)
+    new_drive = {}
+    if commandline_args.google_drive:
+        with open(commandline_args.google_drive, encoding='utf-8') as f:
+            new_drive = json.load(f)
 
     existing_keys = {}
     for filepath in commandline_args.source:
@@ -35,7 +40,7 @@ def main():
         assert key not in existing_keys, \
             f'[ERROR] Exercise key conflicts between `{filepath}` and `{existing_keys[key]}`.'
         existing_keys[key] = filepath
-        release_ipynb(filepath, new_deadlines, commandline_args.renew_version)
+        release_ipynb(filepath, commandline_args.renew_version, new_deadlines, new_drive)
 
     if commandline_args.compress_masters:
         with zipfile.ZipFile(ARCHIVE + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -45,7 +50,7 @@ def main():
         logging.info(f'[INFO] Released {ARCHIVE}.zip')
 
 
-def release_ipynb(master_path, new_deadlines, new_version):
+def release_ipynb(master_path, new_version, new_deadlines, new_drive):
     key, ext = os.path.splitext(os.path.basename(master_path))
     cells, metadata = ipynb_util.load_cells(master_path, True)
     title = extract_first_heading(cells)
@@ -67,8 +72,12 @@ def release_ipynb(master_path, new_deadlines, new_version):
     deadlines = new_deadlines.get(key, deadlines_cur)
     if deadlines != deadlines_cur:
         logging.info(f'[INFO] Renew deadline of `{master_path}`')
+    drive_cur = ipynb_metadata.master_metadata_drive(metadata)
+    drive = new_drive.get(key)
+    if drive != drive_cur:
+        logging.info(f'[INFO] Renew Google Drive ID/URL of `{master_path}`')
 
-    master_metadata = ipynb_metadata.master_metadata(key, False, version, title, deadlines)
+    master_metadata = ipynb_metadata.master_metadata(key, False, version, title, deadlines, drive)
     ipynb_util.save_as_notebook(master_path, cells, master_metadata)
     logging.info(f'[INFO] Released master `{master_path}`')
 
