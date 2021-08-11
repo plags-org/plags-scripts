@@ -66,6 +66,17 @@ def _test_method_name(name, ok_score, fail_score, ok_tag=None, fail_tag=None):
     return f'test_{ok_tag}_{ok_score}_{fail_tag}_{fail_score}_{name}'
 
 
+def set_ok_tag(self, ok_tag):
+    elems = self._testMethodName.split('_', 5)
+    elems[1] = ok_tag
+    self._testMethodName = '_'.join(elems)
+
+def set_fail_tag(self, fail_tag):
+    elems = self._testMethodName.split('_', 5)
+    elems[3] = fail_tag
+    self._testMethodName = '_'.join(elems)
+
+
 def check_method(testcase_cls, fail_tag=None):
     assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
     def decorator(func):
@@ -93,15 +104,6 @@ def test_method(testcase_cls):
     assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
     def decorator(func):
         name = _test_method_name(func.__name__, testcase_cls.score, 0, 'CO', 'IO')
-        setattr(testcase_cls, name, func)
-        return func
-    return decorator
-
-
-def tagging_method(testcase_cls, ok_tag):
-    assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
-    def decorator(func):
-        name = _test_method_name(func.__name__, testcase_cls.score, testcase_cls.score, ok_tag, None)
         setattr(testcase_cls, name, func)
         return func
     return decorator
@@ -135,6 +137,109 @@ def read_argument_log():
     return log
 
 
+class TextTestResult(unittest.TestResult):
+    """A test result class that can print formatted text results to a stream.
+    Used by TextTestRunner.
+    """
+    separator1 = '=' * 70
+    separator2 = '-' * 70
+
+    def __init__(self, stream, descriptions, verbosity):
+        super(TextTestResult, self).__init__(stream, descriptions, verbosity)
+        self.stream = stream
+        self.showAll = verbosity > 1
+        self.dots = verbosity == 1
+        self.descriptions = descriptions
+
+    def getDescription(self, test):
+        doc_first_line = test.shortDescription()
+        if self.descriptions and doc_first_line:
+            return '\n'.join((str(test), doc_first_line))
+        else:
+            return str(test)
+
+    def startTest(self, test):
+        super(TextTestResult, self).startTest(test)
+
+
+    def addSuccess(self, test):
+        super(TextTestResult, self).addSuccess(test)
+        if self.showAll:
+            self.stream.write(self.getDescription(test))
+            self.stream.write(" ... ")
+            self.stream.writeln("ok")
+        elif self.dots:
+            self.stream.write('.')
+            self.stream.flush()
+
+    def addError(self, test, err):
+        super(TextTestResult, self).addError(test, err)
+        if self.showAll:
+            self.stream.write(self.getDescription(test))
+            self.stream.write(" ... ")
+            self.stream.writeln("ERROR")
+        elif self.dots:
+            self.stream.write('E')
+            self.stream.flush()
+
+    def addFailure(self, test, err):
+        super(TextTestResult, self).addFailure(test, err)
+        if self.showAll:
+            self.stream.write(self.getDescription(test))
+            self.stream.write(" ... ")
+            self.stream.writeln("FAIL")
+        elif self.dots:
+            self.stream.write('F')
+            self.stream.flush()
+
+    def addSkip(self, test, reason):
+        super(TextTestResult, self).addSkip(test, reason)
+        if self.showAll:
+            self.stream.write(self.getDescription(test))
+            self.stream.write(" ... ")
+            self.stream.writeln("skipped {0!r}".format(reason))
+        elif self.dots:
+            self.stream.write("s")
+            self.stream.flush()
+
+    def addExpectedFailure(self, test, err):
+        super(TextTestResult, self).addExpectedFailure(test, err)
+        if self.showAll:
+            self.stream.write(self.getDescription(test))
+            self.stream.write(" ... ")
+            self.stream.writeln("expected failure")
+        elif self.dots:
+            self.stream.write("x")
+            self.stream.flush()
+
+    def addUnexpectedSuccess(self, test):
+        super(TextTestResult, self).addUnexpectedSuccess(test)
+        if self.showAll:
+            self.stream.write(self.getDescription(test))
+            self.stream.write(" ... ")
+            self.stream.writeln("unexpected success")
+        elif self.dots:
+            self.stream.write("u")
+            self.stream.flush()
+
+    def printErrors(self):
+        if self.dots or self.showAll:
+            self.stream.writeln()
+        self.printErrorList('ERROR', self.errors)
+        self.printErrorList('FAIL', self.failures)
+
+    def printErrorList(self, flavour, errors):
+        for test, err in errors:
+            self.stream.writeln(self.separator1)
+            self.stream.writeln("%s: %s" % (flavour,self.getDescription(test)))
+            self.stream.writeln(self.separator2)
+            self.stream.writeln("%s" % err)
+
+
+class TextTestRunner(unittest.TextTestRunner):
+    resultclass = TextTestResult
+
+
 def unittest_main(debug=False):
     if debug:
         global PRETTY_PRINT_METHOD_NAME
@@ -143,4 +248,4 @@ def unittest_main(debug=False):
         print('----\n', read_argument_log(), sep='', file=sys.stderr)
         PRETTY_PRINT_METHOD_NAME = False
     else:
-        unittest.main(argv=[''], verbosity=2, exit=False)
+        unittest.main(argv=[''], testRunner=TextTestRunner, verbosity=2, exit=False)
