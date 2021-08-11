@@ -122,3 +122,11 @@ def read_argument_log():
     log = _argument_log.getvalue()
     _argument_log = io.StringIO()
     return log
+
+
+def unittest_main(debug=False):
+    if debug:
+        unittest.main(argv=[''], exit=False)
+        print('----\n', read_argument_log(), sep='', file=sys.stderr)
+    else:
+        unittest.main(argv=[''], verbosity=2, exit=False)
