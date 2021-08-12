@@ -50,7 +50,7 @@ def testcase(score=1):
     class JudgeTestCase(unittest.TestCase):
         def __str__(self):
             if PRETTY_PRINT_METHOD_NAME:
-                prettyname = self._testMethodName.split('_', 5)[-1]
+                prettyname, *_ = _decode_method_name(self._testMethodName)
                 legalname = self._testMethodName
                 self._testMethodName = prettyname
                 ret = super().__str__()
@@ -62,25 +62,31 @@ def testcase(score=1):
     return JudgeTestCase
 
 
-def _test_method_name(name, ok_score, fail_score, ok_tag=None, fail_tag=None):
+def _encode_method_name(name, ok_score, fail_score, ok_tag, fail_tag):
+    assert isinstance(name, str) and len(name) > 0
+    assert all(isinstance(x, int) and x >= 0 for x in (ok_score, fail_score))
+    assert all(isinstance(x, str) or x is None for x in (ok_tag, fail_tag))
     return f'test_{ok_tag}_{ok_score}_{fail_tag}_{fail_score}_{name}'
+
+def _decode_method_name(method_name):
+    _, ok_tag, ok_score, fail_tag, fail_score, name = method_name.split('_', 5)
+    conv = lambda st: (int(st[0]), None if st[1] == 'None' else st[1])
+    return (name, *map(conv, ((ok_score, ok_tag), (fail_score, fail_tag))))
 
 
 def set_ok_tag(self, ok_tag):
-    elems = self._testMethodName.split('_', 5)
-    elems[1] = ok_tag
-    self._testMethodName = '_'.join(elems)
+    name, (ok_score, _), (fail_score, fail_tag) = _decode_method_name(self._testMethodName)
+    self._testMethodName = _encode_method_name(name, ok_score, fail_score, ok_tag, fail_tag)
 
 def set_fail_tag(self, fail_tag):
-    elems = self._testMethodName.split('_', 5)
-    elems[3] = fail_tag
-    self._testMethodName = '_'.join(elems)
+    name, (ok_score, ok_tag), (fail_score,  _) = _decode_method_name(self._testMethodName)
+    self._testMethodName = _encode_method_name(name, ok_score, fail_score, ok_tag, fail_tag)
 
 
 def check_method(testcase_cls, fail_tag=None):
     assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
     def decorator(func):
-        name = _test_method_name(func.__name__, testcase_cls.score, 0, None, fail_tag)
+        name = _encode_method_name(func.__name__, testcase_cls.score, 0, None, fail_tag)
         setattr(testcase_cls, name, func)
         return func
     return decorator
@@ -89,7 +95,7 @@ def check_method(testcase_cls, fail_tag=None):
 def name_error_trap(testcase_cls, fail_tag=None):
     assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
     def decorator(func):
-        name = _test_method_name(func.__name__, testcase_cls.score, 0, None, fail_tag)
+        name = _encode_method_name(func.__name__, testcase_cls.score, 0, None, fail_tag)
         def wrapper(self):
             try:
                 func()
@@ -103,7 +109,7 @@ def name_error_trap(testcase_cls, fail_tag=None):
 def test_method(testcase_cls):
     assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
     def decorator(func):
-        name = _test_method_name(func.__name__, testcase_cls.score, 0, 'CO', 'IO')
+        name = _encode_method_name(func.__name__, testcase_cls.score, 0, 'CO', 'IO')
         setattr(testcase_cls, name, func)
         return func
     return decorator
