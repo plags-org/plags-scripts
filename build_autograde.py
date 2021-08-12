@@ -220,7 +220,7 @@ def create_exercise_configuration(exercise: Exercise):
         json.dump(setting, f, indent=1, ensure_ascii=False)
     for name, content, _ in exercise.system_test_cases:
         with open(os.path.join(tests_dir, name), 'w', encoding='utf-8', newline='\n') as f:
-            f.write(content)
+            print(content, 'judge_util.unittest_main()', sep='\n', file=f)
 
     for path in judge_setting.required_files(setting):
         dest = os.path.join(tests_dir, path)
