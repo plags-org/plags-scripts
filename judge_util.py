@@ -44,9 +44,20 @@ def congruent(f, g):
     return all(eq(n, m) or n == m for n, m in zip(*(ast.walk(ast.parse(_func_source(x))) for x in [f, g])))
 
 
+PRETTY_PRINT_METHOD_NAME = False
+
 def testcase(score=1):
     class JudgeTestCase(unittest.TestCase):
-        pass
+        def __str__(self):
+            if PRETTY_PRINT_METHOD_NAME:
+                prettyname = self._testMethodName.split('_', 5)[-1]
+                legalname = self._testMethodName
+                self._testMethodName = prettyname
+                ret = super().__str__()
+                self._testMethodName = legalname
+            else:
+                ret = super().__str__()
+            return ret
     JudgeTestCase.score = score
     return JudgeTestCase
 
@@ -126,7 +137,10 @@ def read_argument_log():
 
 def unittest_main(debug=False):
     if debug:
-        unittest.main(argv=[''], exit=False)
+        global PRETTY_PRINT_METHOD_NAME
+        PRETTY_PRINT_METHOD_NAME = True
+        unittest.main(argv=[''], verbosity=2, exit=False)
         print('----\n', read_argument_log(), sep='', file=sys.stderr)
+        PRETTY_PRINT_METHOD_NAME = False
     else:
         unittest.main(argv=[''], verbosity=2, exit=False)
