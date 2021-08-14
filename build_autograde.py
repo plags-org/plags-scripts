@@ -38,13 +38,13 @@ SUBMISSION_CELL_FORMAT = """
 
 class FieldKey(enum.Enum):
     WARNING = enum.auto()
-    CONTENT = enum.auto()
-    STUDENT_CODE_CELL = enum.auto()
-    EXPLANATION = enum.auto()
-    ANSWER_EXAMPLES = enum.auto()
-    STUDENT_TESTS = enum.auto()
-    SYSTEM_TEST_CASES = enum.auto()
-    SYSTEM_TEST_CASES_EXECUTE_CELL = enum.auto()
+    DESCRIPTION = enum.auto()
+    ANSWER_CELL_CONTENT = enum.auto()
+    COMMENTARY = enum.auto()
+    EXAMPLE_ANSWERS = enum.auto()
+    INSTRUCTIVE_TEST = enum.auto()
+    SYSTEM_TESTCODE = enum.auto()
+    PLAYGROUND = enum.auto()
 
 class FieldProperty(enum.Flag):
     SINGLE = enum.auto()
@@ -54,13 +54,13 @@ class FieldProperty(enum.Flag):
     CODE = enum.auto()
 
 FieldKey.WARNING.properties = FieldProperty(0)
-FieldKey.CONTENT.properties = FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED
-FieldKey.STUDENT_CODE_CELL.properties = FieldProperty.SINGLE | FieldProperty.CODE
-FieldKey.EXPLANATION.properties = FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED | FieldProperty.OPTIONAL
-FieldKey.ANSWER_EXAMPLES.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
-FieldKey.STUDENT_TESTS.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
-FieldKey.SYSTEM_TEST_CASES.properties = FieldProperty.LIST | FieldProperty.CODE | FieldProperty.OPTIONAL
-FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL.properties = FieldProperty.SINGLE | FieldProperty.CODE
+FieldKey.DESCRIPTION.properties = FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED
+FieldKey.ANSWER_CELL_CONTENT.properties = FieldProperty.SINGLE | FieldProperty.CODE
+FieldKey.COMMENTARY.properties = FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED | FieldProperty.OPTIONAL
+FieldKey.EXAMPLE_ANSWERS.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
+FieldKey.INSTRUCTIVE_TEST.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
+FieldKey.SYSTEM_TESTCODE.properties = FieldProperty.LIST | FieldProperty.CODE | FieldProperty.OPTIONAL
+FieldKey.PLAYGROUND.properties = FieldProperty.SINGLE | FieldProperty.CODE
 
 CellType = ipynb_util.NotebookCellType
 
@@ -83,24 +83,24 @@ class Exercise:
     dirpath: str    # Directory path
     version: str    # Version string
     title: str      # Title string
-    content: List[Cell]                  # The description of exercise, starts with multiple '#'s
-    student_code_cell: Cell              # Code cell
-    explanation: List[Cell]              # The explanation of exercise, starts with multiple '#'s
-    answer_examples: List[Cell]          # List of (filename, content, original code cell)
-    student_tests: List[Cell]            # List of cells
+    description: List[Cell]                      # DESCRIPTION field
+    answer_cell_content: Cell                    # ANSWER_CELL_CONTENT field
+    commentary: List[Cell]                       # COMMENTARY field
+    example_answers: List[Cell]                  # EXAMPLE_ANSWERS field
+    instructive_test: List[Cell]                 # INSTRUCTIVE_TEST field
     test_modules: List[Tuple[str,List[str],str]] # List of (name, required file paths, content)
 
     def submission_cell(self):
-        s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.student_code_cell.source)
+        s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_cell_content.source)
         return Cell(CellType.CODE, s)
 
     def submission_cell_filled(self):
-        s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_examples[0].source if self.answer_examples else self.student_code_cell.source)
+        s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.example_answers[0].source if self.example_answers else self.answer_cell_content.source)
         return Cell(CellType.CODE, s)
 
     def generate_setting(self):
         test_stages  = [(name, paths) for name, paths, _ in self.test_modules]
-        return judge_setting.generate_judge_setting(self.key, self.version, self.student_code_cell.source, test_stages)
+        return judge_setting.generate_judge_setting(self.key, self.version, self.answer_cell_content.source, test_stages)
 
 
 def split_testcode_cells(cells):
@@ -170,7 +170,7 @@ def load_exercise(dirpath, exercise_key):
     exercise_kwargs = {'key': exercise_key, 'dirpath': dirpath, 'version': version}
     for field_key, cells in split_cells(raw_cells).items():
         field_enum = getattr(FieldKey, field_key)
-        if field_enum in (FieldKey.WARNING, FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL):
+        if field_enum in (FieldKey.WARNING, FieldKey.PLAYGROUND):
             continue
         logging.debug(f'[TRACE] Validate field `{field_key}`')
 
@@ -192,12 +192,12 @@ def load_exercise(dirpath, exercise_key):
             first_line = cells[0].source.strip().splitlines()[0]
             m = re.fullmatch(first_line_regex, first_line)
             assert m is not None, f'The first content cell does not start with a heading in Markdown: `{first_line}`.'
-            if field_enum == FieldKey.CONTENT:
+            if field_enum == FieldKey.DESCRIPTION:
                 exercise_kwargs['title'] = m.groups()[0]
 
-        if field_enum == FieldKey.SYSTEM_TEST_CASES:
+        if field_enum == FieldKey.SYSTEM_TESTCODE:
             exercise_kwargs['test_modules'] = split_testcode_cells(cells)
-        elif field_enum == FieldKey.STUDENT_CODE_CELL:
+        elif field_enum == FieldKey.ANSWER_CELL_CONTENT:
             exercise_kwargs[field_key.lower()] = cells[0]
         else:
             exercise_kwargs[field_key.lower()] = cells
@@ -216,7 +216,7 @@ def create_exercise_configuration(exercise: Exercise):
     tests_dir = os.path.join(CONF_DIR, exercise.key)
     os.makedirs(tests_dir, exist_ok=True)
 
-    cells = [x.to_ipynb() for x in itertools.chain(exercise.content, [exercise.student_code_cell])]
+    cells = [x.to_ipynb() for x in itertools.chain(exercise.description, [exercise.answer_cell_content])]
     _, metadata = ipynb_util.load_cells(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), True)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
     setting = exercise.generate_setting()
@@ -257,10 +257,10 @@ def create_bundled_forms(exercise_bundles):
         # Create answer
         body = []
         for exercise in exercises:
-            body.extend(exercise.content)
-            body.extend(exercise.answer_examples)
+            body.extend(exercise.description)
+            body.extend(exercise.example_answers)
             body.append(summarize_testcases(exercise))
-            body.extend(exercise.explanation)
+            body.extend(exercise.commentary)
         filepath = os.path.join(dirpath, f'ans_{dirname}.ipynb')
         metadata = ipynb_metadata.COMMON_METADATA
         ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in itertools.chain(intro, body)], metadata)
@@ -268,9 +268,9 @@ def create_bundled_forms(exercise_bundles):
         # Create form
         body = []
         for exercise in exercises:
-            body.extend(exercise.content)
+            body.extend(exercise.description)
             body.append(exercise.submission_cell())
-            body.extend(exercise.student_tests)
+            body.extend(exercise.instructive_test)
         filepath = os.path.join(dirpath, f'form_{dirname}.ipynb')
         key_to_ver = {ex.key: ex.version for ex in exercises}
         metadata = ipynb_metadata.submission_metadata(key_to_ver, True)
@@ -279,13 +279,13 @@ def create_bundled_forms(exercise_bundles):
 def create_single_forms(exercises: Iterable[Exercise]):
     for ex in exercises:
         # Create answer
-        cells = itertools.chain(ex.content, ex.answer_examples, [summarize_testcases(ex)], ex.explanation)
+        cells = itertools.chain(ex.description, ex.example_answers, [summarize_testcases(ex)], ex.commentary)
         filepath = os.path.join(ex.dirpath, f'ans_{ex.key}.ipynb')
         metadata = ipynb_metadata.COMMON_METADATA
         ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in cells], metadata)
 
         # Create form
-        cells = itertools.chain(ex.content, [ex.submission_cell()], ex.student_tests)
+        cells = itertools.chain(ex.description, [ex.submission_cell()], ex.instructive_test)
         filepath = os.path.join(ex.dirpath, f'form_{ex.key}.ipynb')
         metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version}, True)
         ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in cells], metadata)
@@ -337,9 +337,9 @@ def cleanup_exercise_master(exercise, new_version=None):
         new_version = exercise.version
     elif new_version == hashlib.sha1:
         exercise_definition = {
-            'content': [x.to_ipynb() for x in exercise.content],
+            'description': [x.to_ipynb() for x in exercise.description],
             'submission_cell': exercise.submission_cell().to_ipynb(),
-            'student_tests': [x.to_ipynb() for x in exercise.student_tests],
+            'instructive_test': [x.to_ipynb() for x in exercise.instructive_test],
         }
         m = hashlib.sha1()
         m.update(json.dumps(exercise_definition).encode())
