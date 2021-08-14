@@ -1,64 +1,76 @@
 #!/usr/bin/env python3
 
-generate = None
+import json
 
-def generate_system_test_setting(testlist):
-    def setting_generator(env, time_limit, memory_limit, exercise_key, exercise_version, initial_source):
-        states = {
-            name: {
-                'runner': {
-                    'name': 'test_runner_py37_unittest_v2.py',
-                    'version': '',
-                    'options': {'evaluation_style': 'append'}
-                },
-                'time_limit': time_limit,
-                'require_files': require_files,
-                'result_aggregation': {'grade': 'min'},
-                'transitions': [
-                    (('$forall', ('pass',)), testlist[i+1][0] if i + 1 < len(testlist) else 'accept')
-                ]
-            } for i, (name, require_files) in enumerate(testlist)
-        }
-        return {
-            'schema_version': 'v0.0',
-            'metadata': {
-                'name': exercise_key,
-                'version': exercise_version
+
+judge_parameters = {
+    'default': {
+        'environment': ...,  # str
+        'time_limit': ...,   # int (ms)
+        'memory_limit': ..., # int (MiB)
+    },
+    'override': {
+        # exercise_key: { 'environment': ..., 'time_limit': ..., 'memory_limit': ... }
+    },
+}
+
+
+def load_judge_parameters(json_path):
+    with open(json_path, encoding='utf-8') as f:
+        judge_env = json.load(f)
+    for k in judge_parameters['default']:
+        judge_parameters['default'][k] = judge_env['default'][k]
+    for ex_key, d in judge_env['override'].items():
+        judge_parameters['override'][ex_key] = {k: d[k] for k in judge_parameters['default'] if k in d}
+
+
+def generate_judge_setting(exercise_key, exercise_version, initial_source, test_stages):
+    params = {k: judge_parameters['override'].get(exercise_key, {}).get(k, v) for k, v in judge_parameters['default'].items()}
+    env, time_limit, memory_limit = params['environment'], params['time_limit'], params['memory_limit']
+    states = {
+        name: {
+            'runner': {
+                'name': 'test_runner_py37_unittest_v2.py',
+                'version': '',
+                'options': {'evaluation_style': 'append'}
             },
-            'front': {
-                'initial_source': initial_source,
-                'editor': {
-                    'name': 'CodeMirror',
-                    'options': {'mode': {'name': 'python', 'singleLineStringErrors': True}}
-                },
-                'rejection': {'reject_initial_source': True},
+            'time_limit': time_limit,
+            'require_files': require_files,
+            'result_aggregation': {'grade': 'min'},
+            'transitions': [
+                (('$forall', ('pass',)), test_stages[i+1][0] if i + 1 < len(test_stages) else 'accept')
+            ]
+        } for i, (name, require_files) in enumerate(test_stages)
+    }
+    return {
+        'schema_version': 'v0.0',
+        'metadata': {
+            'name': exercise_key,
+            'version': exercise_version
+        },
+        'front': {
+            'initial_source': initial_source,
+            'editor': {
+                'name': 'CodeMirror',
+                'options': {'mode': {'name': 'python', 'singleLineStringErrors': True}}
             },
-            'judge': {
-                'preprocess': {'rename': 'submission.py'},
-                'environment': {'name': env, 'version': ''},
-                'sandbox': {
-                    'name': 'Firejail',
-                    'options': {
-                        'cpu_limit': 1,
-                        'memory_limit': f'{memory_limit}MiB',
-                        'network_limit': 'disable'
-                    }
-                },
-                'evaluation_dag': {
-                    'initial_state': testlist[0][0],
-                    'states': states,
-                    'result_aggregation': {'grade': 'min'},
+            'rejection': {'reject_initial_source': True},
+        },
+        'judge': {
+            'preprocess': {'rename': 'submission.py'},
+            'environment': {'name': env, 'version': ''},
+            'sandbox': {
+                'name': 'Firejail',
+                'options': {
+                    'cpu_limit': 1,
+                    'memory_limit': f'{memory_limit}MiB',
+                    'network_limit': 'disable'
                 }
             },
-        }
-
-    global generate
-    generate = setting_generator
-    return generate('ENVIRONMENT', 2, 256, 'EXERCISE_KEY', 'EXERCISE_VERSION', '') # Dummy arguments
-
-
-def required_files(setting):
-    fs = set()
-    for x in setting['judge']['evaluation_dag']['states'].values():
-        fs.update(x['require_files'])
-    return fs
+            'evaluation_dag': {
+                'initial_state': test_stages[0][0],
+                'states': states,
+                'result_aggregation': {'grade': 'min'},
+            }
+        },
+    }

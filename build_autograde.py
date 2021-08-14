@@ -20,8 +20,8 @@ import ipynb_metadata
 import ipynb_util
 import judge_setting
 
-if (sys.version_info.major, sys.version_info.minor) < (3, 7):
-    print('[ERROR] This script requires Python >= 3.7.')
+if (sys.version_info.major, sys.version_info.minor) < (3, 8):
+    print('[ERROR] This script requires Python >= 3.8.')
     sys.exit(1)
 
 INTRODUCTION_FILE = 'intro.ipynb'
@@ -45,14 +45,12 @@ class FieldKey(enum.Enum):
     STUDENT_TESTS = enum.auto()
     SYSTEM_TEST_CASES = enum.auto()
     SYSTEM_TEST_CASES_EXECUTE_CELL = enum.auto()
-    SYSTEM_TEST_SETTING = enum.auto()
 
 class FieldProperty(enum.Flag):
     SINGLE = enum.auto()
     LIST = enum.auto()
     OPTIONAL = enum.auto()
     MARKDOWN_HEADED = enum.auto()
-    FILE = enum.auto()
     CODE = enum.auto()
 
 FieldKey.WARNING.properties = FieldProperty(0)
@@ -61,9 +59,8 @@ FieldKey.STUDENT_CODE_CELL.properties = FieldProperty.SINGLE | FieldProperty.COD
 FieldKey.EXPLANATION.properties = FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED | FieldProperty.OPTIONAL
 FieldKey.ANSWER_EXAMPLES.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
 FieldKey.STUDENT_TESTS.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
-FieldKey.SYSTEM_TEST_CASES.properties = FieldProperty.LIST | FieldProperty.FILE
+FieldKey.SYSTEM_TEST_CASES.properties = FieldProperty.LIST | FieldProperty.CODE | FieldProperty.OPTIONAL
 FieldKey.SYSTEM_TEST_CASES_EXECUTE_CELL.properties = FieldProperty.SINGLE | FieldProperty.CODE
-FieldKey.SYSTEM_TEST_SETTING.properties = FieldProperty.SINGLE
 
 CellType = ipynb_util.NotebookCellType
 
@@ -91,8 +88,7 @@ class Exercise:
     explanation: List[Cell]              # The explanation of exercise, starts with multiple '#'s
     answer_examples: List[Cell]          # List of (filename, content, original code cell)
     student_tests: List[Cell]            # List of cells
-    system_test_cases: List[Tuple[str,str,Cell]] # List of (filename, content, original code cell)
-    system_test_setting: Callable        # judge_setting.generate created from Python code
+    test_modules: List[Tuple[str,List[str],str]] # List of (name, required file paths, content)
 
     def submission_cell(self):
         s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.student_code_cell.source)
@@ -103,31 +99,39 @@ class Exercise:
         return Cell(CellType.CODE, s)
 
     def generate_setting(self):
-        params = {k: self.judge_parameters['override'].get(self.key, {}).get(k, v) for k, v in self.judge_parameters['default'].items()}
-        return self.system_test_setting(params['environment'], params['time_limit'], params['memory_limit'], self.key, self.version, self.student_code_cell.source)
-
-    @classmethod
-    def load_judge_parameters(cls, json_path):
-        with open(json_path, encoding='utf-8') as f:
-            judge_env = json.load(f)
-        params = ('environment', 'time_limit', 'memory_limit')
-        cls.judge_parameters = {
-            'default': {k: judge_env['default'][k] for k in params},
-            'override': {ex_key: {k: d[k] for k in params if k in d} for ex_key, d in judge_env['override'].items()},
-        }
+        test_stages  = [(name, paths) for name, paths, _ in self.test_modules]
+        return judge_setting.generate_judge_setting(self.key, self.version, self.student_code_cell.source, test_stages)
 
 
-def split_file_code_cell(cell: Cell):
+def split_testcode_cells(cells):
+    dummy_source = """
+## _dummy
+# .judge/judge_util.py
+
+import sys
+sys.path.append('.judge')
+import judge_util # モジュール全体をそのままの名前でimport
+""".lstrip()
+    if cells:
+        return [split_testcode_cell(x) for x in cells]
+    else:
+        return [split_testcode_cell(Cell(CellType.CODE, dummy_source))]
+
+
+def split_testcode_cell(cell: Cell):
     assert cell.cell_type == CellType.CODE
     lines = cell.source.strip().splitlines(keepends=True)
     first_line_regex = r'#+\s+([^/]{1,255})'
     match = re.fullmatch(first_line_regex, lines[0].strip())
-    assert match is not None, f'RegExp pattern `{first_line_regex}` does not match the first line of a file code cell: {lines[0]}'
-    return (match[1], ''.join(lines[1:]).strip() + '\n', cell)
+    assert match is not None, f'The first line of a test-code cell does not specify a module name of RegExp `{first_line_regex}`: {lines[0]}'
+    module_file = match[1]
+    file_paths = []
+    i = 1
+    while (match := re.fullmatch(r'#+\s+(.*)', lines[i].strip())) is not None:
+        file_paths.append(match[1])
+        i += 1
+    return (module_file, file_paths, ''.join(lines[i:]).strip() + '\n')
 
-def load_system_test_setting(cells: List[Cell]):
-    exec(cells[0].source, {'generate_system_test_setting': judge_setting.generate_system_test_setting})
-    return judge_setting.generate
 
 def split_cells(raw_cells: Iterable[dict]):
     CONTENT_TYPE_REGEX = r'\*\*\*CONTENT_TYPE:\s*(.+?)\*\*\*'
@@ -191,22 +195,22 @@ def load_exercise(dirpath, exercise_key):
             if field_enum == FieldKey.CONTENT:
                 exercise_kwargs['title'] = m.groups()[0]
 
-        exercise_kwargs[field_key.lower()] = {
-            FieldKey.SYSTEM_TEST_SETTING: lambda: load_system_test_setting(cells),
-            FieldKey.SYSTEM_TEST_CASES: lambda: [split_file_code_cell(x) for x in cells],
-            FieldKey.STUDENT_CODE_CELL: lambda: cells[0],
-        }.get(field_enum, lambda: cells)()
+        if field_enum == FieldKey.SYSTEM_TEST_CASES:
+            exercise_kwargs['test_modules'] = split_testcode_cells(cells)
+        elif field_enum == FieldKey.STUDENT_CODE_CELL:
+            exercise_kwargs[field_key.lower()] = cells[0]
+        else:
+            exercise_kwargs[field_key.lower()] = cells
 
     return Exercise(**exercise_kwargs)
 
 def summarize_testcases(exercise: Exercise):
     contents = []
     is_not_decorator_line = lambda x: not x.startswith('@judge_util.')
-    for _, src, _ in exercise.system_test_cases:
+    for _, _, src in exercise.test_modules:
         contents.extend(filter(is_not_decorator_line, itertools.dropwhile(is_not_decorator_line, src.splitlines())))
         contents.append('')
-    contents.pop()
-    return Cell(CellType.CODE, '\n'.join(contents))
+    return Cell(CellType.CODE, '\n'.join(contents).rstrip())
 
 def create_exercise_configuration(exercise: Exercise):
     tests_dir = os.path.join(CONF_DIR, exercise.key)
@@ -218,11 +222,12 @@ def create_exercise_configuration(exercise: Exercise):
     setting = exercise.generate_setting()
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
         json.dump(setting, f, indent=1, ensure_ascii=False)
-    for name, content, _ in exercise.system_test_cases:
-        with open(os.path.join(tests_dir, name), 'w', encoding='utf-8', newline='\n') as f:
+
+    for name, _, content in exercise.test_modules:
+        with open(os.path.join(tests_dir, f'{name}.py'), 'w', encoding='utf-8', newline='\n') as f:
             print(content, 'judge_util.unittest_main()', sep='\n', file=f)
 
-    for path in judge_setting.required_files(setting):
+    for path in itertools.chain(*(paths for _, paths, _ in exercise.test_modules)):
         dest = os.path.join(tests_dir, path)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(os.path.join(exercise.dirpath, path), dest)
@@ -432,8 +437,8 @@ def main():
             logging.info(f'[INFO] Placed `{dst}/judge_util.py`')
 
     if commandline_options.configuration:
-        Exercise.load_judge_parameters(commandline_options.configuration)
-        logging.info(f'[INFO] Creating configuration with `{repr(Exercise.judge_parameters)}` ...')
+        judge_setting.load_judge_parameters(commandline_options.configuration)
+        logging.info(f'[INFO] Creating configuration with `{repr(judge_setting.judge_parameters)}` ...')
         create_configuration(exercises)
 
     if commandline_options.filled_form:
