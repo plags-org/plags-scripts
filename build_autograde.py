@@ -28,7 +28,7 @@ INTRODUCTION_FILE = 'intro.ipynb'
 
 CONF_DIR = 'autograde'
 
-SUBMISSION_CELL_FORMAT = """
+ANSWER_CELL_FORMAT = """
 ##########################################################
 ##  <[ {exercise_key} ]> 解答セル (Answer cell)
 ##  このコメントの書き変えを禁ず (Never edit this comment)
@@ -90,12 +90,12 @@ class Exercise:
     instructive_test: List[Cell]                 # INSTRUCTIVE_TEST field
     test_modules: List[Tuple[str,List[str],str]] # List of (name, required file paths, content)
 
-    def submission_cell(self):
-        s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_cell_content.source)
+    def answer_cell(self):
+        s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_cell_content.source)
         return Cell(CellType.CODE, s)
 
-    def submission_cell_filled(self):
-        s = SUBMISSION_CELL_FORMAT.format(exercise_key=self.key, content=self.example_answers[0].source if self.example_answers else self.answer_cell_content.source)
+    def answer_cell_filled(self):
+        s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.example_answers[0].source if self.example_answers else self.answer_cell_content.source)
         return Cell(CellType.CODE, s)
 
     def generate_setting(self):
@@ -269,7 +269,7 @@ def create_bundled_forms(exercise_bundles):
         body = []
         for exercise in exercises:
             body.extend(exercise.description)
-            body.append(exercise.submission_cell())
+            body.append(exercise.answer_cell())
             body.extend(exercise.instructive_test)
         filepath = os.path.join(dirpath, f'form_{dirname}.ipynb')
         key_to_ver = {ex.key: ex.version for ex in exercises}
@@ -285,14 +285,14 @@ def create_single_forms(exercises: Iterable[Exercise]):
         ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in cells], metadata)
 
         # Create form
-        cells = itertools.chain(ex.description, [ex.submission_cell()], ex.instructive_test)
+        cells = itertools.chain(ex.description, [ex.answer_cell()], ex.instructive_test)
         filepath = os.path.join(ex.dirpath, f'form_{ex.key}.ipynb')
         metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version}, True)
         ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in cells], metadata)
 
 def create_filled_form(exercises: Iterable[Exercise], filepath):
     metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version for ex in exercises}, True)
-    ipynb_util.save_as_notebook(filepath, [ex.submission_cell_filled().to_ipynb() for ex in exercises], metadata)
+    ipynb_util.save_as_notebook(filepath, [ex.answer_cell_filled().to_ipynb() for ex in exercises], metadata)
 
 def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
     exercises = []
@@ -338,7 +338,7 @@ def cleanup_exercise_master(exercise, new_version=None):
     elif new_version == hashlib.sha1:
         exercise_definition = {
             'description': [x.to_ipynb() for x in exercise.description],
-            'submission_cell': exercise.submission_cell().to_ipynb(),
+            'answer_cell': exercise.answer_cell().to_ipynb(),
             'instructive_test': [x.to_ipynb() for x in exercise.instructive_test],
         }
         m = hashlib.sha1()
