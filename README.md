@@ -34,7 +34,6 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 * `exercises_autograde/ex1/ex1-{1,2}-find_nearest.ipynb`: autograde masterの具体例（bundleモード用）
 * `exercises_autograde/ex1/intro.ipynb`: bundleしたときの導入部分（オプショナル）
 * `exercises_as-is/ex2.ipynb`: as-is masterの具体例
-* `deadlines.json`: 課題の締切設定の具体例（オプショナル）
 
 アップロード用ファイル：
 
@@ -206,15 +205,15 @@ masterとformのメタデータには，課題のバージョンが埋め込ま�
 ```json
 {
   "ex1-3-find_nearest_str": {
-    "begins_at": "YYYY-MM-DD hh:mm:ss",
-    "opens_at":  "YYYY-MM-DD hh:mm:ss",
-    "checks_at": "YYYY-MM-DD hh:mm:ss",
-    "closes_at": "YYYY-MM-DD hh:mm:ss",
-    "ends_at":   "YYYY-MM-DD hh:mm:ss"
+    "begin": "YYYY-MM-DD hh:mm:ss",
+    "open":  "YYYY-MM-DD hh:mm:ss",
+    "check": "YYYY-MM-DD hh:mm:ss",
+    "close": "YYYY-MM-DD hh:mm:ss",
+    "end":   "YYYY-MM-DD hh:mm:ss"
   },
   "ex1/": {
-    "opens_at":  "YYYY-MM-DD hh:mm:ss",
-    "closes_at": "YYYY-MM-DD hh:mm:ss"
+    "open":  "YYYY-MM-DD hh:mm:ss",
+    "close": "YYYY-MM-DD hh:mm:ss"
   },
   "ex2": {
   }
@@ -223,7 +222,7 @@ masterとformのメタデータには，課題のバージョンが埋め込ま�
 
 ここで，`YYYY-MM-DD`は西暦の日付，`hh:mm:ss`は24時間表記の時刻である．
 
-締切時刻の属性名 `"begins_at"`・`"opens_at"`・`"checks_at"`・`"closes_at"`・`"ends_at"` は，それぞれブラウザ上の begin（公開開始）・open（提出開始）・check（締切）・close（提出終了）・end（公開終了）に対応する．
+締切時刻の属性名は，それぞれブラウザ上の begin（公開開始）・open（提出開始）・check（締切）・close（提出終了）・end（公開終了）に対応する．
 
 締切時刻の属性値は `null` も可能である．`null`の項目は，コースのデフォルト設定が使われる．属性値が `null` の項目は，締切時刻から省略できる．
 
