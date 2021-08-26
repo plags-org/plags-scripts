@@ -20,7 +20,7 @@ def master_metadata(exercise_key: str, autograde: bool, version: str, title=None
         title = exercise_key
     if deadlines is None:
         deadlines = {}
-    deadlines = {k: deadlines.get(k) for k in ('begins_at', 'opens_at', 'checks_at', 'closes_at', 'ends_at')}
+    deadlines = {k: deadlines.get(k) for k in ('begin', 'open', 'check', 'close', 'end')}
     return {
         'judge_master': {
             'autograde': autograde,
@@ -38,7 +38,7 @@ def master_metadata_version(metadata):
 
 def master_metadata_deadlines(metadata):
     deadlines = metadata.get('judge_master', {}).get('deadlines', {})
-    return {k: deadlines.get(k) for k in ('begins_at', 'opens_at', 'checks_at', 'closes_at', 'ends_at')}
+    return {k: deadlines.get(k) for k in ('begin', 'open', 'check', 'close', 'end')}
 
 def master_metadata_drive(metadata):
     return metadata.get('judge_master', {}).get('drive')
