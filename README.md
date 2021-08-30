@@ -23,10 +23,9 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 
 * `build_autograde.py`: autogradeのビルド用スクリプト（Python 3.7以上）
 * `release_as_is.py`: as-isのビルド用スクリプト（Python 3.6以上）
-* `ipynb_{util,metadata}.py`: ↑2つが利用するライブラリ
 * `judge_util.py`: autogradeのテストコードの記述に使うライブラリ
-* `judge_setting.py`: autogradeのテスト設定の記述に使うライブラリ
-* `install_judge_util.sh`: `judge_util.py`のインストール用スクリプト
+* `judge_setting.py`: `build_autograde.py` が利用するライブラリ
+* `ipynb_{util,metadata}.py`: `build_autograde.py` `release_as_is.py` が利用するライブラリ
 
 課題例：
 
@@ -46,16 +45,10 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 
 #### separateモードのビルド
 
-準備として，`judge_util.py` を所定のディレクトリにインストールする．
-
-```sh
-./install_judge_util.sh exercises/autograde
-```
-
 autograde masterに対して個別にformを作るseparateモードでビルドする例．
 
 ```sh
-./build_autograde.py -s exercises/autograde/ex1-3-find_nearest_str.ipynb
+./build_autograde.py -lp -s exercises/autograde/ex1-3-find_nearest_str.ipynb
 ```
 
 **効果**：
@@ -63,23 +56,20 @@ autograde masterに対して個別にformを作るseparateモードでビルド�
 * `exercises/autograde/ex1-3-find_nearest_str.ipynb` から出力部分を除去し，master用メタデータを設定
 * `exercises/autograde/form_ex1-3-find_nearest_str.ipynb` の作成
 * `exercises/autograde/ans_ex1-3-find_nearest_str.ipynb` の作成
+* `exercises/autograde/.judge/judge_util.py` の設置（`-lp`）
 
 `form_${exercise}.ipynb`は，`${exercise}.ipynb`のformであり，`ans_${exercise}.ipynb`は，解答例・解説・テストケースをまとめたもの（answer）である．answerは，教員が授業中に表示させたり，TAに配布したりすることを想定している．
 
 `-s` は任意個の引数を取ることができる．したがって，コマンドラインのワイルドカード指定などを使うことで，一括ビルドができる．
 
+`-lp` は，指定されたmasterが利用する `judge_util.py` をインストールする．課題例のmasterのテストコードは，`.judge/judge_util.py` を使うように記述されているので，インストールしないとローカルでもサーバでも動作しない．レポジトリ内の `judge_util.py` が更新される場合に備えて，毎回 `-lp` を指定する方が安全である．
+
 #### bundleモードのビルド
-
-準備として，`judge_util.py` を所定のディレクトリにインストールする．
-
-```sh
-./install_judge_util.sh exercises/autograde/ex1
-```
 
 複数のmasterを束ねたformを作るbundleモードでビルドする例．
 
 ```sh
-./build_autograde.py -s exercises/autograde/ex1
+./build_autograde.py -lp -s exercises/autograde/ex1
 ```
 
 **効果**：
@@ -87,6 +77,7 @@ autograde masterに対して個別にformを作るseparateモードでビルド�
 * `exercises/autograde/ex1/ex1-{1,2}-find_nearest.ipynb` からOutputを除去し，master用メタデータを設定
 * `exercises/autograde/ex1/form_ex1.ipynb` の作成
 * `exercises/autograde/ex1/ans_ex1.ipynb` の作成
+* `exercises/autograde/ex1/.judge/judge_util.py` の設置（`-lp`）
 
 separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `form_ex1.ipynb` にまとめている．`form_ex1.ipynb` の導入部分として `intro.ipynb` があれば使われ，無ければディレクトリ名だけの見出し（`# ex1`）が自動で付けられる．
 
@@ -99,13 +90,13 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `fo
 アップロード用設定ファイル `autograde.zip` を生成するには，アップロード対象のmaster全てを対象に指定して，`-c` オプションで実行する．
 
 ```sh
-./build_autograde.py -c judge_env.json -s exercises/autograde/ex1*
+./build_autograde.py -c judge_env.json -lp -s exercises/autograde/ex1*
 ```
 
 **効果**：
 
-* `./build_autograde.py -s exercises/autograde/ex1` の効果
-* `./build_autograde.py -s exercises/autograde/ex1-3-find_nearest_str.ipynb` の効果
+* `./build_autograde.py -lp -s exercises/autograde/ex1` の効果
+* `./build_autograde.py -lp -s exercises/autograde/ex1-3-find_nearest_str.ipynb` の効果
 * `exercises/autograde/ex1/ex1-{1,2}-find_nearest.ipynb` と
   `exercises/autograde/ex1-3-find_nearest_str.ipynb` からなる `autograde.zip` を作成
 
