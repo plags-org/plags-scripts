@@ -21,7 +21,7 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 
 提供するスクリプト：
 
-* `build_autograde.py`: autogradeのビルド用スクリプト（Python 3.7以上）
+* `build_autograde.py`: autogradeのビルド用スクリプト（Python 3.8以上）
 * `release_as_is.py`: as-isのビルド用スクリプト（Python 3.6以上）
 * `judge_util.py`: autogradeのテストコードの記述に使うライブラリ
 * `judge_setting.py`: `build_autograde.py` が利用するライブラリ
