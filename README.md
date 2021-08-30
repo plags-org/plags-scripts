@@ -22,6 +22,7 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 提供するスクリプト：
 
 * `build_autograde.py`: autogradeのビルド用スクリプト（Python 3.8以上）
+* `template_autograde.py`: autogradeのテンプレート生成スクリプト（Python 3.8以上，要 `pip astunparse`）
 * `release_as_is.py`: as-isのビルド用スクリプト（Python 3.6以上）
 * `judge_util.py`: autogradeのテストコードの記述に使うライブラリ
 * `judge_setting.py`: `build_autograde.py` が利用するライブラリ
@@ -126,13 +127,15 @@ as-isの場合は，master用メタデータが設定された `exercises/as-is/
 
 ### autogradeの作り方
 
-separateモードを使うなら`exercises/autograde/ex1-3-find_nearest_str.ipynb`をコピーして，bundleモードを使うなら`exercises/autograde/ex1/ex1-1-find_nearest.ipynb`をコピーして，そこに書かれた指示に従って改変する．
+separateモードを使うなら`exercises/autograde/ex1-3-find_nearest_str.ipynb`をコピーして，bundleモードを使うなら`exercises/autograde/ex1/ex1-1-find_nearest.ipynb`をコピーして，そこに書かれた指示に従って改変すればよい．
 
 ただし，bundleモードを利用する際には，次の点を踏まえて，ファイルやディレクトリの命名に留意すること．
 
 * `spam` というディレクトリが指定されると，`spam/form_spam.ipynb` というformを作る．
 * `spam/spam[-_].*\.ipynb` の正規表現にマッチするファイルが `spam/form_spam.ipynb` を作るmasterと見做される．
 * `spam/form_spam.ipynb` 内での課題の順序は，masterのファイル名の辞書順である．
+
+個々のautograde masterのテストコードの作成には，`template_autograde.py`を用いる方が安全かつ効率的である．
 
 ### as-isの作り方
 
