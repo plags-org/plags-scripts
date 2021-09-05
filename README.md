@@ -250,3 +250,28 @@ bundleモードでまとめられるautogradeに対しては，exercise_keyの�
 ```
 
 課題を表す属性名は，`deadlines.json` と同様の規則で指定する．属性値には，上の例のように，Drive URL，Colab URL，Drive IDのいずれを設定しても，ブラウザ上の効果は同じである．属性値に `null` を設定すると，Colabリンクを削除できる．
+
+次のGoogle Apps Scriptを使えば，Driveフォルダ内のformから `drive.json` を生成できる．
+
+```javascript
+function gen_drive_js() {
+  const folderUrl = 'https://drive.google.com/drive/folders/${DriveID}' // formの設置場所
+  const folderId = folderUrl.split('/').pop()
+  const files = DriveApp.getFolderById(folderId).getFiles()
+  const d = {}
+  while (files.hasNext()) {
+    const f = files.next()
+    const fp = f.getUrl().split('/')
+    const fid = fp[fp.length - 2]
+    if (!f.getName().endsWith('.ipynb')) continue
+    const metadata = JSON.parse(f.getBlob().getDataAsString())['metadata']['judge_submission']
+    for (const key in metadata['exercises']) {
+      d[key] = fid
+    }
+  }
+  Logger.log(d)
+  DriveApp.getRootFolder().createFile('drive.json', JSON.stringify(d))
+}
+```
+
+指定したフォルダにform一式を設置後，このスクリプトを実行すると，Driveのrootディレクトリに `drive.json` が生成される．
