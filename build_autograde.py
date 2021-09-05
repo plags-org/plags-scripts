@@ -100,7 +100,7 @@ class Exercise:
 
     def generate_setting(self):
         test_stages  = [(name, paths) for name, paths, _ in self.test_modules]
-        return judge_setting.generate_judge_setting(self.key, self.version, self.answer_cell_content.source, test_stages)
+        return judge_setting.generate_judge_setting(self.key, self.version, test_stages)
 
 
 def split_testcode_cells(cells):
@@ -218,6 +218,7 @@ def create_exercise_configuration(exercise: Exercise):
 
     cells = [x.to_ipynb() for x in itertools.chain(exercise.description, [exercise.answer_cell_content])]
     _, metadata = ipynb_util.load_cells(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), True)
+    ipynb_metadata.extend_master_metadata_for_trial(metadata, exercise.answer_cell_content.source)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
     setting = exercise.generate_setting()
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:

@@ -43,3 +43,20 @@ def master_metadata_deadlines(metadata):
 
 def master_metadata_drive(metadata):
     return metadata.get('judge_master', {}).get('drive')
+
+def extend_master_metadata_for_trial(metadata, initial_source):
+    metadata['judge_master']['trial'] = {
+        'initial_source': initial_source,
+        'editor': {
+            'name': 'CodeMirror',
+            'options': {
+                'indentUnit': 4,
+                'lineNumbers': True,
+                'matchBrackets': True,
+                'mode': {
+                    'name': 'python',
+                    'singleLineStringErrors': True,
+                }
+            }
+        }
+    }

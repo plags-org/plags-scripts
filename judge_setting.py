@@ -24,7 +24,7 @@ def load_judge_parameters(json_path):
         judge_parameters['override'][ex_key] = {k: d[k] for k in judge_parameters['default'] if k in d}
 
 
-def generate_judge_setting(exercise_key, exercise_version, initial_source, test_stages):
+def generate_judge_setting(exercise_key, exercise_version, test_stages):
     params = {k: judge_parameters['override'].get(exercise_key, {}).get(k, v) for k, v in judge_parameters['default'].items()}
     env, time_limit, memory_limit = params['environment'], params['time_limit'], params['memory_limit']
     states = {
@@ -43,18 +43,10 @@ def generate_judge_setting(exercise_key, exercise_version, initial_source, test_
         } for i, (name, require_files) in enumerate(test_stages)
     }
     return {
-        'schema_version': 'v0.0',
+        'schema_version': 'v0.1',
         'metadata': {
             'name': exercise_key,
             'version': exercise_version
-        },
-        'front': {
-            'initial_source': initial_source,
-            'editor': {
-                'name': 'CodeMirror',
-                'options': {'mode': {'name': 'python', 'singleLineStringErrors': True}}
-            },
-            'rejection': {'reject_initial_source': True},
         },
         'judge': {
             'preprocess': {'rename': 'submission.py'},
