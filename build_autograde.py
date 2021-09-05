@@ -358,7 +358,7 @@ def cleanup_exercise_master(exercise, new_version=None):
 
 
 def update_exercise_master_metadata_formwise(separates, bundles, new_deadlines, new_drive):
-    for exercise in separates:
+    for exercise in itertools.chain(*bundles.values(), separates):
         filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
         cells, metadata = ipynb_util.load_cells(filepath)
         deadlines_cur = ipynb_metadata.master_metadata_deadlines(metadata)
