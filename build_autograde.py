@@ -246,54 +246,54 @@ def create_configuration(exercises: Iterable[Exercise]):
             for fname in files:
                 zipf.write(os.path.join(dirpath, fname), os.path.join(arcdirpath, fname))
 
-def create_bundled_forms(exercise_bundles):
-    for dirpath, exercises in exercise_bundles.items():
-        dirname = os.path.basename(dirpath)
-        try:
-            raw_cells, _ = ipynb_util.load_cells(os.path.join(dirpath, INTRODUCTION_FILE))
-            intro = [Cell(t, s) for t, s in ipynb_util.normalized_cells(raw_cells)]
-        except FileNotFoundError:
-            intro = [Cell(CellType.MARKDOWN, f'# {os.path.basename(dirpath)}')]
 
-        # Create answer
-        body = []
-        for exercise in exercises:
-            body.extend(exercise.description)
-            body.extend(exercise.example_answers)
-            body.append(summarize_testcases(exercise))
-            body.extend(exercise.commentary)
-        filepath = os.path.join(dirpath, f'ans_{dirname}.ipynb')
-        metadata = ipynb_metadata.COMMON_METADATA
-        ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in itertools.chain(intro, body)], metadata)
+def create_bundled_form(dirpath, exercises):
+    assert all(ex.dirpath == dirpath for ex in exercises)
+    body = create_bundled_intro(dirpath)
+    for exercise in exercises:
+        body.extend(exercise.description)
+        body.append(exercise.answer_cell())
+        body.extend(exercise.instructive_test)
+    key_to_ver = {ex.key: ex.version for ex in exercises}
+    metadata = ipynb_metadata.submission_metadata(key_to_ver, True)
+    return [c.to_ipynb() for c in body], metadata
 
-        # Create form
-        body = []
-        for exercise in exercises:
-            body.extend(exercise.description)
-            body.append(exercise.answer_cell())
-            body.extend(exercise.instructive_test)
-        filepath = os.path.join(dirpath, f'form_{dirname}.ipynb')
-        key_to_ver = {ex.key: ex.version for ex in exercises}
-        metadata = ipynb_metadata.submission_metadata(key_to_ver, True)
-        ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in itertools.chain(intro, body)], metadata)
 
-def create_single_forms(exercises: Iterable[Exercise]):
-    for ex in exercises:
-        # Create answer
-        cells = itertools.chain(ex.description, ex.example_answers, [summarize_testcases(ex)], ex.commentary)
-        filepath = os.path.join(ex.dirpath, f'ans_{ex.key}.ipynb')
-        metadata = ipynb_metadata.COMMON_METADATA
-        ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in cells], metadata)
+def create_bundled_answer(dirpath, exercises):
+    assert all(ex.dirpath == dirpath for ex in exercises)
+    body = create_bundled_intro(dirpath)
+    for exercise in exercises:
+        body.extend(exercise.description)
+        body.extend(exercise.example_answers)
+        body.append(summarize_testcases(exercise))
+        body.extend(exercise.commentary)
+    return [c.to_ipynb() for c in body], ipynb_metadata.COMMON_METADATA
 
-        # Create form
-        cells = itertools.chain(ex.description, [ex.answer_cell()], ex.instructive_test)
-        filepath = os.path.join(ex.dirpath, f'form_{ex.key}.ipynb')
-        metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version}, True)
-        ipynb_util.save_as_notebook(filepath, [c.to_ipynb() for c in cells], metadata)
 
-def create_filled_form(exercises: Iterable[Exercise], filepath):
+def create_bundled_intro(dirpath):
+    dirname = os.path.basename(dirpath)
+    try:
+        raw_cells, _ = ipynb_util.load_cells(os.path.join(dirpath, INTRODUCTION_FILE))
+        return [Cell(t, s) for t, s in ipynb_util.normalized_cells(raw_cells)]
+    except FileNotFoundError:
+        return [Cell(CellType.MARKDOWN, f'# {os.path.basename(dirpath)}')]
+
+
+def create_separate_form(exercise):
+    cells = itertools.chain(exercise.description, [exercise.answer_cell()], exercise.instructive_test)
+    metadata =  ipynb_metadata.submission_metadata({exercise.key: exercise.version}, True)
+    return [c.to_ipynb() for c in cells], metadata
+
+
+def create_separate_answer(exercise):
+    cells = itertools.chain(exercise.description, exercise.example_answers, [summarize_testcases(exercise)], exercise.commentary)
+    return [c.to_ipynb() for c in cells], ipynb_metadata.COMMON_METADATA
+
+
+def create_filled_form(exercises):
     metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version for ex in exercises}, True)
-    ipynb_util.save_as_notebook(filepath, [ex.answer_cell_filled().to_ipynb() for ex in exercises], metadata)
+    return [ex.answer_cell_filled().to_ipynb() for ex in exercises], metadata
+
 
 def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
     exercises = []
@@ -407,10 +407,10 @@ def main():
         logging.getLogger().setLevel('INFO')
 
     separates, bundles = load_sources(commandline_options.source)
-    exercises = list(itertools.chain(*bundles.values(), separates))
+    all_exercises = list(itertools.chain(*bundles.values(), separates))
 
     logging.info('[INFO] Cleaning up exercise masters...')
-    for ex in exercises:
+    for ex in all_exercises:
         cleanup_exercise_master(ex, commandline_options.renew_version)
 
     deadlines = {}
@@ -425,13 +425,32 @@ def main():
         update_exercise_master_metadata_formwise(separates, bundles, deadlines, drive)
 
     logging.info('[INFO] Creating bundled forms...')
-    create_bundled_forms(bundles)
+    for dirpath, exercises in bundles.items():
+        cells, metadata = create_bundled_form(dirpath, exercises)
+        filepath = os.path.join(dirpath, f'form_{os.path.basename(dirpath)}.ipynb')
+        ipynb_util.save_as_notebook(filepath, cells, metadata)
+
     logging.info('[INFO] Creating separate forms...')
-    create_single_forms(separates)
+    for exercise in separates:
+        cells, metadata = create_separate_form(exercise)
+        filepath = os.path.join(exercise.dirpath, f'form_{exercise.key}.ipynb')
+        ipynb_util.save_as_notebook(filepath, cells, metadata)
+
+    logging.info('[INFO] Creating bundled answers...')
+    for dirpath, exercises in bundles.items():
+        cells, metadata = create_bundled_answer(dirpath, exercises)
+        filepath = os.path.join(dirpath, f'ans_{os.path.basename(dirpath)}.ipynb')
+        ipynb_util.save_as_notebook(filepath, cells, metadata)
+
+    logging.info('[INFO] Creating separate answers...')
+    for exercise in separates:
+        cells, metadata = create_separate_answer(exercise)
+        filepath = os.path.join(exercise.dirpath, f'ans_{exercise.key}.ipynb')
+        ipynb_util.save_as_notebook(filepath, cells, metadata)
 
     if commandline_options.library_placement:
         import judge_util
-        for dirpath in {ex.dirpath for ex in exercises}:
+        for dirpath in {ex.dirpath for ex in all_exercises}:
             dst = os.path.join(dirpath, commandline_options.library_placement)
             os.makedirs(dst, exist_ok=True)
             shutil.copy2(judge_util.__file__, dst)
@@ -440,11 +459,13 @@ def main():
     if commandline_options.configuration:
         judge_setting.load_judge_parameters(commandline_options.configuration)
         logging.info(f'[INFO] Creating configuration with `{repr(judge_setting.judge_parameters)}` ...')
-        create_configuration(exercises)
+        create_configuration(all_exercises)
 
     if commandline_options.filled_form:
         logging.info(f'[INFO] Creating filled form `{commandline_options.filled_form}` ...')
-        create_filled_form(exercises, commandline_options.filled_form)
+        cells, metadata = create_filled_form(all_exercises)
+        ipynb_util.save_as_notebook(commandline_options.filled_form, cells, metadata)
+
 
 if __name__ == '__main__':
     main()
