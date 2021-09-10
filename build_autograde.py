@@ -98,10 +98,6 @@ class Exercise:
         s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.example_answers[0].source if self.example_answers else self.answer_cell_content.source)
         return Cell(CellType.CODE, s)
 
-    def generate_setting(self):
-        test_stages  = [(name, paths) for name, paths, _ in self.test_modules]
-        return judge_setting.generate_judge_setting(self.key, self.version, test_stages)
-
 
 def split_testcode_cells(cells):
     dummy_source = """
@@ -220,7 +216,9 @@ def create_exercise_configuration(exercise: Exercise):
     _, metadata = ipynb_util.load_cells(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), True)
     ipynb_metadata.extend_master_metadata_for_trial(metadata, exercise.answer_cell_content.source)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
-    setting = exercise.generate_setting()
+
+    test_stages  = [(name, paths) for name, paths, _ in exercise.test_modules]
+    setting = judge_setting.generate_judge_setting(exercise.key, exercise.version, test_stages)
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
         json.dump(setting, f, indent=1, ensure_ascii=False)
 
