@@ -391,6 +391,7 @@ def update_exercise_master_metadata_formwise(separates, bundles, new_deadlines, 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
+    parser.add_argument('-a', '--answer', action='store_true', help='Generate answer ipynb.')
     parser.add_argument('-d', '--deadlines', metavar='DEADLINES_JSON', help='Specify a JSON file of deadline settings.')
     parser.add_argument('-c', '--configuration', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
@@ -434,17 +435,18 @@ def main():
         filepath = os.path.join(exercise.dirpath, f'form_{exercise.key}.ipynb')
         ipynb_util.save_as_notebook(filepath, cells, metadata)
 
-    logging.info('[INFO] Creating bundled answers...')
-    for dirpath, exercises in bundles.items():
-        cells, metadata = create_bundled_answer(dirpath, exercises)
-        filepath = os.path.join(dirpath, f'ans_{os.path.basename(dirpath)}.ipynb')
-        ipynb_util.save_as_notebook(filepath, cells, metadata)
+    if commandline_options.answer:
+        logging.info('[INFO] Creating bundled answers...')
+        for dirpath, exercises in bundles.items():
+            cells, metadata = create_bundled_answer(dirpath, exercises)
+            filepath = os.path.join(dirpath, f'ans_{os.path.basename(dirpath)}.ipynb')
+            ipynb_util.save_as_notebook(filepath, cells, metadata)
 
-    logging.info('[INFO] Creating separate answers...')
-    for exercise in separates:
-        cells, metadata = create_separate_answer(exercise)
-        filepath = os.path.join(exercise.dirpath, f'ans_{exercise.key}.ipynb')
-        ipynb_util.save_as_notebook(filepath, cells, metadata)
+        logging.info('[INFO] Creating separate answers...')
+        for exercise in separates:
+            cells, metadata = create_separate_answer(exercise)
+            filepath = os.path.join(exercise.dirpath, f'ans_{exercise.key}.ipynb')
+            ipynb_util.save_as_notebook(filepath, cells, metadata)
 
     if commandline_options.library_placement:
         import judge_util
