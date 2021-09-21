@@ -118,6 +118,21 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `fo
 
 このanswerファイルは，教員が授業中に表示させたり，TAに配布したりすることを想定している．
 
+#### All-filled form
+
+`-ff` オプションを指定することで，ビルド対象に指定した全ての課題の模範解答をまとめたformを生成する．
+
+```sh
+./build_autograde.py -ff -s exercises/autograde/ex1*
+```
+
+**効果**：
+
+* `exercises/autograde/ex1/ex1-{1,2}-find_nearest.ipynb` と `exercises/autograde/ans_ex1-3-find_nearest_str.ipynb` の模範解答からなる `form_filled_all.ipynb` を生成．
+
+`form_filled_all.ipynb` は，formなので提出可能である．
+模範解答の参照と，自動評価を一括実行するテストに用いられる．
+
 ### as-isのビルド
 
 ```sh
