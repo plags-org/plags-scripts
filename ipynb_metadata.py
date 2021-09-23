@@ -5,7 +5,7 @@ COMMON_METADATA = {
         'name': 'python3',
     },
     'language_info': {
-        'name': '',
+        'name': 'python',
     },
 }
 
