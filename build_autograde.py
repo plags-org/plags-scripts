@@ -300,7 +300,8 @@ def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
     for path in sorted(source_paths):
         if os.path.isdir(path):
             dirpath = path
-            dirname = os.path.basename(dirpath)
+            parent, dirname = os.path.split(dirpath)
+            dirname = dirname if dirname else os.path.basename(parent)
             logging.info(f'[INFO] Loading `{dirpath}`...')
             for nb in sorted(os.listdir(dirpath)):
                 match = re.fullmatch(fr'({dirname}[-_].*)\.ipynb', nb)
