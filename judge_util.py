@@ -3,6 +3,7 @@
 import ast, inspect
 import unittest
 import sys, io
+import re
 
 
 def _func_source(f):
@@ -66,7 +67,20 @@ def _encode_method_name(name, ok_score, fail_score, ok_tag, fail_tag):
     assert isinstance(name, str) and len(name) > 0
     assert all(isinstance(x, int) and x >= 0 for x in (ok_score, fail_score))
     assert all(isinstance(x, str) or x is None for x in (ok_tag, fail_tag))
-    return f'test_{ok_tag}_{ok_score}_{fail_tag}_{fail_score}_{name}'
+    return f'test_{normalize_tag(ok_tag)}_{ok_score}_{normalize_tag(fail_tag)}_{fail_score}_{name}'
+
+def normalize_tag(tag):
+    if tag is None:
+        return tag
+    chars = r'[0-9A-Za-z]+'
+    max_length = 16
+    if re.fullmatch(chars, tag) is None:
+        raise ValueError(repr(tag))
+    if len(tag) <= max_length:
+        return tag
+    else:
+        print(f'[Warning] Tag name {repr(tag)} is truncated to {repr(tag[:max_length])}.', file=sys.stderr)
+        return tag[:max_length]
 
 def _decode_method_name(method_name):
     _, ok_tag, ok_score, fail_tag, fail_score, name = method_name.split('_', 5)
