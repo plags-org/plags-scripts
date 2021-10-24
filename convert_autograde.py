@@ -34,14 +34,16 @@ def convert_master(filepath):
     CONTENT_TYPE_REGEX = r'\*\*\*CONTENT_TYPE:\s*(.+?)\*\*\*'
 
     cells, metadata = ipynb_util.load_cells(filepath)
-    for c in cells:
+    for i, c in enumerate(cells):
         if c['cell_type'] == 'markdown':
             matches = list(re.finditer(CONTENT_TYPE_REGEX, ''.join(c['source'])))
             if not matches:
                 continue
             key = matches[0][1]
             if key in REWRITE_RULES:
-                c['source']= REWRITE_RULES[key].splitlines(True)
+                c['source'] = REWRITE_RULES[key].splitlines(True)
+            if key == 'SYSTEM_TEST_CASES_EXECUTE_CELL':
+                cells[i+1]['source'] = ['judge_util.unittest_main(True)']
 
     new_cells = []
     deleting = False

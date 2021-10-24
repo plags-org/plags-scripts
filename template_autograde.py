@@ -49,8 +49,6 @@ def generate_template(exercise):
                 given_test = generate_given_test_code(exercise)
                 gen_cells.extend(given_test)
                 gen_cells.append(generate_hidden_test_code(exercise))
-            elif key == FieldKey.PLAYGROUND:
-                cells[i+1]['source'] = 'judge_util.unittest_main(True)'
         else:
             gen_cells.append(c)
 
