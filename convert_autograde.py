@@ -27,10 +27,10 @@ def main():
 
     for path in paths:
         print('Convert:', path)
-        correct_typos_master(path)
+        convert_master(path)
 
 
-def correct_typos_master(filepath):
+def convert_master(filepath):
     CONTENT_TYPE_REGEX = r'\*\*\*CONTENT_TYPE:\s*(.+?)\*\*\*'
 
     cells, metadata = ipynb_util.load_cells(filepath)
