@@ -3,7 +3,11 @@
 import ast, inspect
 import unittest
 import sys, io
+import os
 import re
+import enum
+import collections
+import json
 
 
 def _func_source(f):
@@ -45,72 +49,54 @@ def congruent(f, g):
     return all(eq(n, m) or n == m for n, m in zip(*(ast.walk(ast.parse(_func_source(x))) for x in [f, g])))
 
 
-PRETTY_PRINT_METHOD_NAME = False
+class JudgeTestCaseBase(unittest.TestCase):
+    ok_tags = []
+    fail_tags = []
+    unsuccessful_score = 0
+
 
 def testcase(score=1):
-    class JudgeTestCase(unittest.TestCase):
-        def __str__(self):
-            if PRETTY_PRINT_METHOD_NAME:
-                prettyname, *_ = _decode_method_name(self._testMethodName)
-                legalname = self._testMethodName
-                self._testMethodName = prettyname
-                ret = super().__str__()
-                self._testMethodName = legalname
-            else:
-                ret = super().__str__()
-            return ret
-    JudgeTestCase.score = score
+    class JudgeTestCase(JudgeTestCaseBase):
+        pass
+    JudgeTestCaseBase.score = score
+    assert JudgeTestCase.score >= JudgeTestCase.unsuccessful_score
     return JudgeTestCase
 
 
-def _encode_method_name(name, ok_score, fail_score, ok_tag, fail_tag):
+def _encode_method_name(name):
     assert isinstance(name, str) and len(name) > 0
-    assert all(isinstance(x, int) and x >= 0 for x in (ok_score, fail_score))
-    assert all(isinstance(x, str) or x is None for x in (ok_tag, fail_tag))
-    return f'test_{normalize_tag(ok_tag)}_{ok_score}_{normalize_tag(fail_tag)}_{fail_score}_{name}'
-
-def normalize_tag(tag):
-    if tag is None:
-        return tag
-    chars = r'[0-9A-Za-z]+'
-    max_length = 16
-    if re.fullmatch(chars, tag) is None:
-        raise ValueError(repr(tag))
-    if len(tag) <= max_length:
-        return tag
-    else:
-        print(f'[Warning] Tag name {repr(tag)} is truncated to {repr(tag[:max_length])}.', file=sys.stderr)
-        return tag[:max_length]
+    return f'test_{name}'
 
 def _decode_method_name(method_name):
-    _, ok_tag, ok_score, fail_tag, fail_score, name = method_name.split('_', 5)
-    conv = lambda st: (int(st[0]), None if st[1] == 'None' else st[1])
-    return (name, *map(conv, ((ok_score, ok_tag), (fail_score, fail_tag))))
+    _, name = method_name.split('_', 1)
+    return name
 
 
 def set_ok_tag(self, ok_tag):
-    name, (ok_score, _), (fail_score, fail_tag) = _decode_method_name(self._testMethodName)
-    self._testMethodName = _encode_method_name(name, ok_score, fail_score, ok_tag, fail_tag)
+    self.ok_tags = [ok_tag] if ok_tag else []
 
 def set_fail_tag(self, fail_tag):
-    name, (ok_score, ok_tag), (fail_score,  _) = _decode_method_name(self._testMethodName)
-    self._testMethodName = _encode_method_name(name, ok_score, fail_score, ok_tag, fail_tag)
+    self.fail_tags = [fail_tag] if fail_tag else []
 
 
 def check_method(testcase_cls, fail_tag=None):
-    assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
+    assert issubclass(testcase_cls, JudgeTestCaseBase)
     def decorator(func):
-        name = _encode_method_name(func.__name__, testcase_cls.score, 0, None, fail_tag)
-        setattr(testcase_cls, name, func)
+        def wrapper_method(self):
+            set_fail_tag(self, fail_tag)
+            func(self)
+        name = _encode_method_name(func.__name__)
+        setattr(testcase_cls, name, wrapper_method)
         return func
     return decorator
 
 
 def name_error_trap(testcase_cls, fail_tag=None):
-    assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
+    assert issubclass(testcase_cls, JudgeTestCaseBase)
     def decorator(func):
-        name = _encode_method_name(func.__name__, testcase_cls.score, 0, None, fail_tag)
+        name = _encode_method_name(func.__name__)
         def wrapper(self):
+            set_fail_tag(self, fail_tag)
             try:
                 func()
             except NameError:
@@ -121,10 +107,14 @@ def name_error_trap(testcase_cls, fail_tag=None):
 
 
 def test_method(testcase_cls):
-    assert isinstance(testcase_cls.score,int) and testcase_cls.score > 0
+    assert issubclass(testcase_cls, JudgeTestCaseBase)
     def decorator(func):
-        name = _encode_method_name(func.__name__, testcase_cls.score, 0, 'CO', 'IO')
-        setattr(testcase_cls, name, func)
+        def wrapper_method(self):
+            set_ok_tag(self, 'CO')
+            set_fail_tag(self, 'IO')
+            func(self)
+        name = _encode_method_name(func.__name__)
+        setattr(testcase_cls, name, wrapper_method)
         return func
     return decorator
 
@@ -157,115 +147,79 @@ def read_argument_log():
     return log
 
 
-class TextTestResult(unittest.TestResult):
-    """A test result class that can print formatted text results to a stream.
-    Used by TextTestRunner.
-    """
-    separator1 = '=' * 70
-    separator2 = '-' * 70
+class ResultStatus(enum.Enum):
+    PASS = enum.auto()
+    FAIL = enum.auto()
+    ERROR = enum.auto()
+    UNKNOWN = enum.auto()
+
+
+class JudgeTestResult(unittest.TestResult):
+    Record = collections.namedtuple('JudgeRecord', ('name', 'status', 'score', 'tags', 'err'))
 
     def __init__(self, stream, descriptions, verbosity):
-        super(TextTestResult, self).__init__(stream, descriptions, verbosity)
-        self.stream = stream
-        self.showAll = verbosity > 1
-        self.dots = verbosity == 1
-        self.descriptions = descriptions
-
-    def getDescription(self, test):
-        doc_first_line = test.shortDescription()
-        if self.descriptions and doc_first_line:
-            return '\n'.join((str(test), doc_first_line))
-        else:
-            return str(test)
+        super().__init__(stream, descriptions, verbosity)
+        self.successes = set()
+        self.run_tests = []
 
     def startTest(self, test):
-        super(TextTestResult, self).startTest(test)
-
+        super().startTest(test)
+        self.run_tests.append(test)
 
     def addSuccess(self, test):
-        super(TextTestResult, self).addSuccess(test)
-        if self.showAll:
-            self.stream.write(self.getDescription(test))
-            self.stream.write(" ... ")
-            self.stream.writeln("ok")
-        elif self.dots:
-            self.stream.write('.')
-            self.stream.flush()
+        super().addSuccess(test)
+        self.successes.add(test)
 
-    def addError(self, test, err):
-        super(TextTestResult, self).addError(test, err)
-        if self.showAll:
-            self.stream.write(self.getDescription(test))
-            self.stream.write(" ... ")
-            self.stream.writeln("ERROR")
-        elif self.dots:
-            self.stream.write('E')
-            self.stream.flush()
+    def to_table(self):
+        failures = {t: e for t, e in self.failures}
+        errors = {t: e for t, e in self.errors}
+        rows = []
+        for t in self.run_tests:
+            if t in self.successes:
+                status = ResultStatus.PASS
+                score = t.score
+                tags = t.ok_tags
+                err = ''
+            elif t in failures:
+                status = ResultStatus.FAIL
+                score = t.unsuccessful_score
+                tags = t.fail_tags
+                err = failures[t]
+            elif t in errors:
+                status = ResultStatus.ERROR
+                score = t.unsuccessful_score
+                tags = []
+                err = errors[t]
+            else:
+                status = ResultStatus.UNKNOWN
+                score = t.unsuccessful_score
+                tags = []
+                err = ''
+            name = _decode_method_name(t._testMethodName)
+            rows.append(JudgeTestResult.Record(name, status, score, tags, err))
+        return rows
 
-    def addFailure(self, test, err):
-        super(TextTestResult, self).addFailure(test, err)
-        if self.showAll:
-            self.stream.write(self.getDescription(test))
-            self.stream.write(" ... ")
-            self.stream.writeln("FAIL")
-        elif self.dots:
-            self.stream.write('F')
-            self.stream.flush()
-
-    def addSkip(self, test, reason):
-        super(TextTestResult, self).addSkip(test, reason)
-        if self.showAll:
-            self.stream.write(self.getDescription(test))
-            self.stream.write(" ... ")
-            self.stream.writeln("skipped {0!r}".format(reason))
-        elif self.dots:
-            self.stream.write("s")
-            self.stream.flush()
-
-    def addExpectedFailure(self, test, err):
-        super(TextTestResult, self).addExpectedFailure(test, err)
-        if self.showAll:
-            self.stream.write(self.getDescription(test))
-            self.stream.write(" ... ")
-            self.stream.writeln("expected failure")
-        elif self.dots:
-            self.stream.write("x")
-            self.stream.flush()
-
-    def addUnexpectedSuccess(self, test):
-        super(TextTestResult, self).addUnexpectedSuccess(test)
-        if self.showAll:
-            self.stream.write(self.getDescription(test))
-            self.stream.write(" ... ")
-            self.stream.writeln("unexpected success")
-        elif self.dots:
-            self.stream.write("u")
-            self.stream.flush()
-
-    def printErrors(self):
-        if self.dots or self.showAll:
-            self.stream.writeln()
-        self.printErrorList('ERROR', self.errors)
-        self.printErrorList('FAIL', self.failures)
-
-    def printErrorList(self, flavour, errors):
-        for test, err in errors:
-            self.stream.writeln(self.separator1)
-            self.stream.writeln("%s: %s" % (flavour,self.getDescription(test)))
-            self.stream.writeln(self.separator2)
-            self.stream.writeln("%s" % err)
+    def to_json(self):
+        rows = [x._asdict() for x in self.to_table()]
+        for row in rows:
+            row['status'] = row['status'].name.lower()
+        return json.dumps(rows, indent=1, ensure_ascii=False)
 
 
-class TextTestRunner(unittest.TextTestRunner):
-    resultclass = TextTestResult
+class JudgeTestRunner(unittest.TextTestRunner):
+    resultclass = JudgeTestResult
 
 
 def unittest_main(debug=False):
+    stream = io.StringIO()
+    main = unittest.main(argv=[''], testRunner=JudgeTestRunner(stream, verbosity=2), exit=False)
+    result_json = main.result.to_json()
     if debug:
-        global PRETTY_PRINT_METHOD_NAME
-        PRETTY_PRINT_METHOD_NAME = True
-        unittest.main(argv=[''], verbosity=2, exit=False)
+        for row in json.loads(result_json):
+            print(row['name'], row['status'], row['tags'], sep='\t', file=sys.stderr)
+        for row in json.loads(result_json):
+            if row['status'] != ResultStatus.PASS.name:
+                print('='*70, f"{row['status']}: {row['name']}", '-'*70, row['err'], sep='\n', file=sys.stderr)
         print('----\n', read_argument_log(), sep='', file=sys.stderr)
-        PRETTY_PRINT_METHOD_NAME = False
     else:
-        unittest.main(argv=[''], testRunner=TextTestRunner, verbosity=2, exit=False)
+        print(result_json)
