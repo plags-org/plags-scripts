@@ -43,7 +43,7 @@ def convert_master(filepath):
             if key in REWRITE_RULES:
                 c['source'] = REWRITE_RULES[key].splitlines(True)
             if key == 'SYSTEM_TEST_CASES_EXECUTE_CELL':
-                cells[i+1]['source'] = ['judge_util.unittest_main(True)']
+                cells[i+1]['source'] = ['judge_util.unittest_main()']
 
     new_cells = []
     deleting = False

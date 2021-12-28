@@ -8,6 +8,7 @@ import re
 import enum
 import collections
 import json
+import html
 
 
 def _func_source(f):
@@ -153,6 +154,18 @@ class ResultStatus(enum.Enum):
     ERROR = enum.auto()
     UNKNOWN = enum.auto()
 
+    def style(self):
+        common = 'border-radius: 16%; padding: 4px 8px; margin: 1px 2px 1px; font-weight: 600;'
+        if self == self.PASS:
+            return common + 'background-color: #3fbf3f; color: #bfffbf;'
+        elif self in (self.FAIL, self.ERROR):
+            return common + 'background-color: #bf3f3f; color: #ffdfdf;'
+        else:
+            return common + 'background-color: #333333; color: #cccccc;'
+
+    def to_html(self):
+        return f'<span style="{self.style()}">{self.name.lower()}</span>'
+
 
 class JudgeTestResult(unittest.TestResult):
     Record = collections.namedtuple('JudgeRecord', ('name', 'status', 'score', 'tags', 'err'))
@@ -210,16 +223,59 @@ class JudgeTestRunner(unittest.TextTestRunner):
     resultclass = JudgeTestResult
 
 
-def unittest_main(debug=False):
+def render_evaluation_html(rows):
+    return '<h3>Evaluation</h3>\n' + render_summary_table(rows) + '\n' + render_details_html(rows)
+
+def render_summary_table(records):
+    thead = """
+<thead>
+  <tr>
+    <th style="text-align: center;">Test case</th>
+    <th style="text-align: center;">Result type</th>
+    <th style="text-align: center;">Result tag</th>
+  </tr>
+</thead>
+""".strip('\n')
+    trs = '\n'.join(f"""
+  <tr>
+    <td style="text-align: left;">{name}</td>
+    <td style="text-align: left;">{status.to_html()}</td>
+    <td style="text-align: left;">{' '.join(tags)}</td>
+  </tr>
+""".strip('\n') for name, status, _, tags, _, in records)
+    tbody = f"""
+<tbody>
+{trs}
+</tbody>
+""".strip('\n')
+    table = f"""
+<table border="1">
+{thead}
+{tbody}
+</table>
+""".strip('\n')
+    return table
+
+def render_details_html(rows):
+    def unsuccessful_detail_html(record):
+        name, status, _, _, err, = record
+        return f"""
+<section style="padding-top: 8px;">
+<h4>{status.to_html()} {name}</h6>
+<h5>Error message</h5>
+<pre>
+{html.escape(err.strip())}
+</pre>
+</section>
+""".strip('\n')
+    return '\n'.join(unsuccessful_detail_html(x) for x in rows if x.status != ResultStatus.PASS)
+
+
+def unittest_main(*, on_ipynb='IPython' in sys.modules):
     stream = io.StringIO()
     main = unittest.main(argv=[''], testRunner=JudgeTestRunner(stream, verbosity=2), exit=False)
-    result_json = main.result.to_json()
-    if debug:
-        for row in json.loads(result_json):
-            print(row['name'], row['status'], row['tags'], sep='\t', file=sys.stderr)
-        for row in json.loads(result_json):
-            if row['status'] != ResultStatus.PASS.name:
-                print('='*70, f"{row['status']}: {row['name']}", '-'*70, row['err'], sep='\n', file=sys.stderr)
-        print('----\n', read_argument_log(), sep='', file=sys.stderr)
+    if on_ipynb:
+        import IPython.display
+        return IPython.display.HTML(render_evaluation_html(main.result.to_table()))
     else:
-        print(result_json)
+        print(main.result.to_json())
