@@ -148,6 +148,12 @@ def read_argument_log():
     return log
 
 
+_message_log = {}
+
+def set_unsuccessful_message(testcase, msg):
+    _message_log[testcase] = msg
+
+
 class ResultStatus(enum.Enum):
     PASS = enum.auto()
     FAIL = enum.auto()
@@ -168,7 +174,7 @@ class ResultStatus(enum.Enum):
 
 
 class JudgeTestResult(unittest.TestResult):
-    Record = collections.namedtuple('JudgeRecord', ('name', 'status', 'score', 'tags', 'err'))
+    Record = collections.namedtuple('JudgeRecord', ('name', 'status', 'score', 'tags', 'err', 'msg'))
 
     def __init__(self, stream, descriptions, verbosity):
         super().__init__(stream, descriptions, verbosity)
@@ -182,6 +188,7 @@ class JudgeTestResult(unittest.TestResult):
     def addSuccess(self, test):
         super().addSuccess(test)
         self.successes.add(test)
+        _message_log.pop(test, None)
 
     def to_table(self):
         failures = {t: e for t, e in self.failures}
@@ -193,23 +200,27 @@ class JudgeTestResult(unittest.TestResult):
                 score = t.score
                 tags = t.ok_tags
                 err = ''
+                msg = _message_log.get(t, '')
             elif t in failures:
                 status = ResultStatus.FAIL
                 score = t.unsuccessful_score
                 tags = t.fail_tags
                 err = failures[t]
+                msg = _message_log.get(t, '')
             elif t in errors:
                 status = ResultStatus.ERROR
                 score = t.unsuccessful_score
                 tags = []
                 err = errors[t]
+                msg = _message_log.get(t, '')
             else:
                 status = ResultStatus.UNKNOWN
                 score = t.unsuccessful_score
                 tags = []
                 err = ''
+                msg = ''
             name = _decode_method_name(t._testMethodName)
-            rows.append(JudgeTestResult.Record(name, status, score, tags, err))
+            rows.append(JudgeTestResult.Record(name, status, score, tags, err, msg))
         return rows
 
     def to_json(self):
@@ -242,7 +253,7 @@ def render_summary_table(records):
     <td style="text-align: left;">{status.to_html()}</td>
     <td style="text-align: left;">{' '.join(tags)}</td>
   </tr>
-""".strip('\n') for name, status, _, tags, _, in records)
+""".strip('\n') for name, status, _, tags, _, _ in records)
     tbody = f"""
 <tbody>
 {trs}
@@ -258,10 +269,14 @@ def render_summary_table(records):
 
 def render_details_html(rows):
     def unsuccessful_detail_html(record):
-        name, status, _, _, err, = record
+        name, status, _, _, err, msg = record
         return f"""
 <section style="padding-top: 8px;">
 <h4>{status.to_html()} {name}</h6>
+<h5>Message</h5>
+<pre>
+{html.escape(msg.strip())}
+</pre>
 <h5>Error message</h5>
 <pre>
 {html.escape(err.strip())}
@@ -272,6 +287,8 @@ def render_details_html(rows):
 
 
 def unittest_main(*, on_ipynb='IPython' in sys.modules):
+    global _message_log
+    _message_log = {}
     stream = io.StringIO()
     main = unittest.main(argv=[''], testRunner=JudgeTestRunner(stream, verbosity=2), exit=False)
     if on_ipynb:
