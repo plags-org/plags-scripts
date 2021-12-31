@@ -120,9 +120,7 @@ def test_method(testcase_cls):
     return decorator
 
 
-_argument_log = io.StringIO()
-
-def argument_logger(f):
+def argument_logger(testcase, func):
     def argrepr(x):
         if isinstance(x, io.TextIOBase):
             pos = x.tell()
@@ -131,21 +129,17 @@ def argument_logger(f):
             return f'File({repr(s)})'
         else:
             return repr(x)
+
     def cutoff(s, limit=256):
         return s[:limit] + '...' if len(s) >= limit else s
+
     def wrapper(*args, **kwargs):
         args_repr = [cutoff(argrepr(x)) for x in args]
         args_repr.extend(f'{k}={cutoff(argrepr(v))}' for k, v in kwargs.items())
-        logfile = _argument_log if 'IPython' in sys.modules else sys.stderr
-        print(f'Called: {f.__name__}({", ".join(args_repr)})', file=logfile)
-        return f(*args, **kwargs)
-    return wrapper
+        set_unsuccessful_message(testcase, f'Something went wrong: {func.__name__}({", ".join(args_repr)})')
+        return func(*args, **kwargs)
 
-def read_argument_log():
-    global _argument_log
-    log = _argument_log.getvalue()
-    _argument_log = io.StringIO()
-    return log
+    return wrapper
 
 
 _message_log = {}
