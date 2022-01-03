@@ -35,11 +35,6 @@ autogradeとas-isでは，master/formの書式も異なり，スクリプトの�
 * `exercises/autograde/ex1/intro.ipynb`: bundleしたときの導入部分（オプショナル）
 * `exercises/as-is/ex2.ipynb`: as-is masterの具体例
 
-アップロード用ファイル：
-
-* `autograde.zip`: autograde master一式
-* `as-is_masters.zip`: as-is master一式
-
 ## スクリプトの使い方
 
 ### autogradeのビルド
@@ -147,7 +142,7 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `fo
 
 `exercises/as-is/form_${exercise}.ipynb` は，`exercises/as-is/${exercise}.ipynb` のformであり，メタデータの違いしかない．
 
-as-isの場合は，master用メタデータが設定された `exercises/as-is/*.ipynb` を個別にアップロードしてシステムに登録できる．`as-is_masters.zip` は引数に指定された `exercises/as-is/*.ipynb` を単にまとめただけである．
+as-isの場合は，master用メタデータが設定された `exercises/as-is/*.ipynb` を個別にアップロードしてシステムに登録できる．一括アップロード用の `as-is_masters.zip` は，引数に指定された `exercises/as-is/*.ipynb` を単にまとめただけである．
 
 ## 課題の作り方
 
