@@ -109,9 +109,16 @@ import judge_util # モジュール全体をそのままの名前でimport
 Dummy = judge_util.teststage()
 """.lstrip()
     if cells:
-        return [split_testcode_cell(dirpath, x) for x in cells]
+        test_modules = [split_testcode_cell(dirpath, x) for x in cells]
     else:
-        return [split_testcode_cell('.', Cell(CellType.CODE, dummy_source))]
+        test_modules = [split_testcode_cell('.', Cell(CellType.CODE, dummy_source))]
+    assert len({stage.name for stage, _ in test_modules}) == len(test_modules), f'Stage names conflict: {test_modules}'
+    for stage, _ in test_modules:
+        # Validation of score
+        assert all(s is None or (isinstance(s, int) and s >= 0) for s in (getattr(stage, k) for k in ('score', 'unsuccessful_score')))
+        if all(isinstance(getattr(stage, k), int) for k in ('score', 'unsuccessful_score')):
+            assert stage.score >= stage.unsuccessful_score
+    return test_modules
 
 
 def split_testcode_cell(dirpath, cell: Cell):

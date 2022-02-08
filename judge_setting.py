@@ -30,21 +30,21 @@ def generate_judge_setting(exercise_key, exercise_version, test_stages):
     states = {
         stage.name: {
             'runner': {
-                'name': 'test_runner_py37_unittest_v2.py',
+                'name': 'test_runner_py37_unittest_v3.py',
                 'version': '',
                 'options': {'evaluation_style': 'append'}
             },
             'time_limit': time_limit,
-            'require_files': stage.required_files,
-            'result_aggregation': {'grade': 'min'},
-            'transitions': [
-                (('$forall', ('pass',)), test_stages[i+1].name if i + 1 < len(test_stages) else 'accept')
-            ]
-        } for i, stage in enumerate(test_stages)
+            'required_files': stage.required_files,
+        } for stage in test_stages
     }
+    transitions = []
+    for i, stage in enumerate(test_stages):
+        transitions.append(((stage.name, ('pass',)), (test_stages[i+1].name if i+1 < len(test_stages) else '$', stage.score)))
+        transitions.append(((stage.name, 'otherwise'), ('$', stage.unsuccessful_score)))
     return {
-        'schema_version': 'v0.1',
-        'metadata': {
+        'schema_version': 'v0.2',
+        'exercise': {
             'name': exercise_key,
             'version': exercise_version
         },
@@ -59,10 +59,10 @@ def generate_judge_setting(exercise_key, exercise_version, test_stages):
                     'network_limit': 'disable'
                 }
             },
-            'evaluation_dag': {
+            'evaluation': {
                 'initial_state': test_stages[0].name,
                 'states': states,
-                'result_aggregation': {'grade': 'min'},
+                'transition_function': transitions,
             }
         },
     }

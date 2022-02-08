@@ -54,19 +54,20 @@ def congruent(f, g):
 class JudgeTestCaseBase(unittest.TestCase):
     ok_tags = []
     fail_tags = []
-    unsuccessful_score = 0
-    score: int
 
 class JudgeTestStageBase(JudgeTestCaseBase):
     name: typing.Optional[str]
     required_files: list
+    score: typing.Optional[int]
+    unsuccessful_score: typing.Optional[int]
 
-def teststage(name=None, score=1):
+def teststage(name=None, *, score=1, unsuccessful_score=0, required_files=[]):
     class JudgeTestStage(JudgeTestStageBase):
         required_files = ['.judge/judge_util.py']
     JudgeTestStage.name = name
     JudgeTestStage.score = score
-    assert score >= JudgeTestStage.unsuccessful_score
+    JudgeTestStage.unsuccessful_score = unsuccessful_score
+    JudgeTestStage.required_files.extend(required_files)
     return JudgeTestStage
 
 
@@ -174,7 +175,7 @@ class ResultStatus(enum.Enum):
 
 
 class JudgeTestResult(unittest.TestResult):
-    Record = collections.namedtuple('JudgeRecord', ('name', 'status', 'score', 'tags', 'err', 'msg'))
+    Record = collections.namedtuple('JudgeRecord', ('name', 'status', 'tags', 'err', 'msg'))
 
     def __init__(self, stream, descriptions, verbosity):
         super().__init__(stream, descriptions, verbosity)
@@ -197,30 +198,26 @@ class JudgeTestResult(unittest.TestResult):
         for t in self.run_tests:
             if t in self.successes:
                 status = ResultStatus.PASS
-                score = t.score
                 tags = t.ok_tags
                 err = ''
                 msg = _message_log.get(t, '')
             elif t in failures:
                 status = ResultStatus.FAIL
-                score = t.unsuccessful_score
                 tags = t.fail_tags
                 err = failures[t]
                 msg = _message_log.get(t, '')
             elif t in errors:
                 status = ResultStatus.ERROR
-                score = t.unsuccessful_score
                 tags = []
                 err = errors[t]
                 msg = _message_log.get(t, '')
             else:
                 status = ResultStatus.UNKNOWN
-                score = t.unsuccessful_score
                 tags = []
                 err = ''
                 msg = ''
             name = _decode_method_name(t._testMethodName)
-            rows.append(JudgeTestResult.Record(name, status, score, tags, err, msg))
+            rows.append(JudgeTestResult.Record(name, status, tags, err, msg))
         return rows
 
     def to_json(self):
@@ -253,7 +250,7 @@ def render_summary_table(records):
     <td style="text-align: left;">{status.to_html()}</td>
     <td style="text-align: left;">{' '.join(tags)}</td>
   </tr>
-""".strip('\n') for name, status, _, tags, _, _ in records)
+""".strip('\n') for name, status, tags, _, _ in records)
     tbody = f"""
 <tbody>
 {trs}
@@ -269,7 +266,7 @@ def render_summary_table(records):
 
 def render_details_html(rows):
     def unsuccessful_detail_html(record):
-        name, status, _, _, err, msg = record
+        name, status, _, err, msg = record
         return f"""
 <section style="padding-top: 8px;">
 <h4>{status.to_html()} {name}</h6>
