@@ -9,6 +9,7 @@ import enum
 import collections
 import json
 import html
+import typing
 
 
 def _func_source(f):
@@ -54,14 +55,19 @@ class JudgeTestCaseBase(unittest.TestCase):
     ok_tags = []
     fail_tags = []
     unsuccessful_score = 0
+    score: int
 
+class JudgeTestStageBase(JudgeTestCaseBase):
+    name: typing.Optional[str]
+    required_files: list
 
-def testcase(score=1):
-    class JudgeTestCase(JudgeTestCaseBase):
-        pass
-    JudgeTestCaseBase.score = score
-    assert JudgeTestCase.score >= JudgeTestCase.unsuccessful_score
-    return JudgeTestCase
+def teststage(name=None, score=1):
+    class JudgeTestStage(JudgeTestStageBase):
+        required_files = ['.judge/judge_util.py']
+    JudgeTestStage.name = name
+    JudgeTestStage.score = score
+    assert score >= JudgeTestStage.unsuccessful_score
+    return JudgeTestStage
 
 
 def _encode_method_name(name):

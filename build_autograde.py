@@ -19,6 +19,7 @@ import itertools
 import ipynb_metadata
 import ipynb_util
 import judge_setting
+from judge_util import JudgeTestStageBase
 
 if (sys.version_info.major, sys.version_info.minor) < (3, 8):
     print('[ERROR] This script requires Python >= 3.8.')
@@ -88,7 +89,7 @@ class Exercise:
     commentary: List[Cell]                       # COMMENTARY field
     example_answers: List[Cell]                  # EXAMPLE_ANSWERS field
     instructive_test: List[Cell]                 # INSTRUCTIVE_TEST field
-    test_modules: List[Tuple[str,List[str],str]] # List of (name, required file paths, content)
+    test_modules: List[Tuple[JudgeTestStageBase,str]] # List of (JudgeTestStageBase, content)
 
     def answer_cell(self):
         s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_cell_content.source)
@@ -99,34 +100,36 @@ class Exercise:
         return Cell(CellType.CODE, s)
 
 
-def split_testcode_cells(cells):
+def split_testcode_cells(dirpath, cells):
     dummy_source = """
-## _dummy
-# .judge/judge_util.py
-
 import sys
 sys.path.append('.judge')
 import judge_util # モジュール全体をそのままの名前でimport
+
+Dummy = judge_util.teststage()
 """.lstrip()
     if cells:
-        return [split_testcode_cell(x) for x in cells]
+        return [split_testcode_cell(dirpath, x) for x in cells]
     else:
-        return [split_testcode_cell(Cell(CellType.CODE, dummy_source))]
+        return [split_testcode_cell('.', Cell(CellType.CODE, dummy_source))]
 
 
-def split_testcode_cell(cell: Cell):
+def split_testcode_cell(dirpath, cell: Cell):
     assert cell.cell_type == CellType.CODE
-    lines = cell.source.strip().splitlines(keepends=True)
-    first_line_regex = r'#+\s+([^/]{1,255})'
-    match = re.fullmatch(first_line_regex, lines[0].strip())
-    assert match is not None, f'The first line of a test-code cell does not specify a module name of RegExp `{first_line_regex}`: {lines[0]}'
-    module_file = match[1]
+    env = {'__name__': '__main__'}
+    path = sys.path[:]
+    cwd = os.getcwd()
+    os.chdir(dirpath)
+    exec(cell.source, env)
+    sys.path = path
+    os.chdir(cwd)
     file_paths = []
-    i = 1
-    while (match := re.fullmatch(r'#+\s+(.*)', lines[i].strip())) is not None:
-        file_paths.append(match[1])
-        i += 1
-    return (module_file, file_paths, ''.join(lines[i:]).strip() + '\n')
+    decls = [(n,v) for n, v in env.items() if isinstance(v, type) and issubclass(v, JudgeTestStageBase)]
+    assert len(decls) == 1
+    (name, stage), *_ = decls
+    if stage.name is None:
+        stage.name = name
+    return (stage, cell.source + '\n')
 
 
 def split_cells(raw_cells: Iterable[dict]):
@@ -192,7 +195,7 @@ def load_exercise(dirpath, exercise_key):
                 exercise_kwargs['title'] = m.groups()[0]
 
         if field_enum == FieldKey.SYSTEM_TESTCODE:
-            exercise_kwargs['test_modules'] = split_testcode_cells(cells)
+            exercise_kwargs['test_modules'] = split_testcode_cells(dirpath, cells)
         elif field_enum == FieldKey.ANSWER_CELL_CONTENT:
             exercise_kwargs[field_key.lower()] = cells[0]
         else:
@@ -217,16 +220,15 @@ def create_exercise_configuration(exercise: Exercise):
     ipynb_metadata.extend_master_metadata_for_trial(metadata, exercise.answer_cell_content.source)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
 
-    test_stages  = [(name, paths) for name, paths, _ in exercise.test_modules]
-    setting = judge_setting.generate_judge_setting(exercise.key, exercise.version, test_stages)
+    setting = judge_setting.generate_judge_setting(exercise.key, exercise.version, [stage for stage, _ in exercise.test_modules])
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
         json.dump(setting, f, indent=1, ensure_ascii=False)
 
-    for name, _, content in exercise.test_modules:
-        with open(os.path.join(tests_dir, f'{name}.py'), 'w', encoding='utf-8', newline='\n') as f:
+    for stage, content in exercise.test_modules:
+        with open(os.path.join(tests_dir, f'{stage.name}.py'), 'w', encoding='utf-8', newline='\n') as f:
             print(content, 'judge_util.unittest_main()', sep='\n', file=f)
 
-    for path in itertools.chain(*(paths for _, paths, _ in exercise.test_modules)):
+    for path in itertools.chain(*(stage.required_files for stage, _ in exercise.test_modules)):
         dest = os.path.join(tests_dir, path)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(os.path.join(exercise.dirpath, path), dest)

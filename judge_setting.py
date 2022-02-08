@@ -28,19 +28,19 @@ def generate_judge_setting(exercise_key, exercise_version, test_stages):
     params = {k: judge_parameters['override'].get(exercise_key, {}).get(k, v) for k, v in judge_parameters['default'].items()}
     env, time_limit, memory_limit = params['environment'], params['time_limit'], params['memory_limit']
     states = {
-        name: {
+        stage.name: {
             'runner': {
                 'name': 'test_runner_py37_unittest_v2.py',
                 'version': '',
                 'options': {'evaluation_style': 'append'}
             },
             'time_limit': time_limit,
-            'require_files': require_files,
+            'require_files': stage.required_files,
             'result_aggregation': {'grade': 'min'},
             'transitions': [
-                (('$forall', ('pass',)), test_stages[i+1][0] if i + 1 < len(test_stages) else 'accept')
+                (('$forall', ('pass',)), test_stages[i+1].name if i + 1 < len(test_stages) else 'accept')
             ]
-        } for i, (name, require_files) in enumerate(test_stages)
+        } for i, stage in enumerate(test_stages)
     }
     return {
         'schema_version': 'v0.1',
@@ -60,7 +60,7 @@ def generate_judge_setting(exercise_key, exercise_version, test_stages):
                 }
             },
             'evaluation_dag': {
-                'initial_state': test_stages[0][0],
+                'initial_state': test_stages[0].name,
                 'states': states,
                 'result_aggregation': {'grade': 'min'},
             }
