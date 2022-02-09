@@ -91,6 +91,8 @@ class Exercise:
     instructive_test: List[Cell]                 # INSTRUCTIVE_TEST field
     test_modules: List[Tuple[JudgeTestStageBase,str]] # List of (JudgeTestStageBase, content)
 
+    builtin_test_modules = [] # List of module paths
+
     def answer_cell(self):
         s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_cell_content.source)
         return Cell(CellType.CODE, s)
@@ -108,16 +110,22 @@ import judge_util # モジュール全体をそのままの名前でimport
 
 Dummy = judge_util.teststage()
 """.lstrip()
+    test_modules = []
+    for path in Exercise.builtin_test_modules:
+        with open(path, encoding='utf-8') as f:
+            test_modules.append(split_testcode_cell(os.path.dirname(path), Cell(CellType.CODE, f.read())))
     if cells:
-        test_modules = [split_testcode_cell(dirpath, x) for x in cells]
+        test_modules.extend(split_testcode_cell(dirpath, x) for x in cells)
     else:
-        test_modules = [split_testcode_cell('.', Cell(CellType.CODE, dummy_source))]
+        test_modules.append(split_testcode_cell('.', Cell(CellType.CODE, dummy_source)))
+
     assert len({stage.name for stage, _ in test_modules}) == len(test_modules), f'Stage names conflict: {test_modules}'
     for stage, _ in test_modules:
         # Validation of score
         assert all(s is None or (isinstance(s, int) and s >= 0) for s in (getattr(stage, k) for k in ('score', 'unsuccessful_score')))
         if all(isinstance(getattr(stage, k), int) for k in ('score', 'unsuccessful_score')):
             assert stage.score >= stage.unsuccessful_score
+
     return test_modules
 
 
@@ -409,11 +417,14 @@ def main():
     parser.add_argument('-gd', '--google_drive', nargs='?', const='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
     parser.add_argument('-ff', '--filled_form', nargs='?', const='form_filled_all.ipynb', help='Generate an all-filled form (default: form_filled_all.ipynb)')
     parser.add_argument('-lp', '--library_placement', nargs='?', metavar='LIBDIR', const='.judge', help='Place judge_util.py for each exercise into LIBDIR (default: .judge).')
+    parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck.py'], help='Specify module files of builtin test stages (default: rawcheck.py)')
     commandline_options = parser.parse_args()
     if commandline_options.verbose:
         logging.getLogger().setLevel('DEBUG')
     else:
         logging.getLogger().setLevel('INFO')
+
+    Exercise.builtin_test_modules.extend(os.path.abspath(x) for x in commandline_options.builtin_teststage)
 
     separates, bundles = load_sources(commandline_options.source)
     all_exercises = list(itertools.chain(*bundles.values(), separates))

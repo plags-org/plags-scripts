@@ -2,6 +2,8 @@
 
 import json
 
+from judge_util import SUBMISSION_FILENAME
+
 
 judge_parameters = {
     'default': {
@@ -32,7 +34,7 @@ def generate_judge_setting(exercise_key, exercise_version, test_stages):
             'runner': {
                 'name': 'test_runner_py37_unittest_v3.py',
                 'version': '',
-                'options': {'evaluation_style': 'append'}
+                'options': {'evaluation_style': stage.mode}
             },
             'time_limit': time_limit,
             'required_files': stage.required_files,
@@ -49,7 +51,7 @@ def generate_judge_setting(exercise_key, exercise_version, test_stages):
             'version': exercise_version
         },
         'judge': {
-            'preprocess': {'rename': 'submission.py'},
+            'preprocess': {'rename': SUBMISSION_FILENAME},
             'environment': {'name': env, 'version': ''},
             'sandbox': {
                 'name': 'Firejail',

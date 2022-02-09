@@ -12,6 +12,9 @@ import html
 import typing
 
 
+SUBMISSION_FILENAME = 'submission.py'
+
+
 def _func_source(f):
     src_lines = inspect.getsource(f).splitlines()
     offset_indent = len(src_lines[0]) - len(src_lines[0].lstrip(' '))
@@ -56,6 +59,7 @@ class JudgeTestCaseBase(unittest.TestCase):
     fail_tags = []
 
 class JudgeTestStageBase(JudgeTestCaseBase):
+    mode = 'append' # or 'separate'
     name: typing.Optional[str]
     required_files: list
     score: typing.Optional[int]
