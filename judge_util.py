@@ -10,6 +10,7 @@ import collections
 import json
 import html
 import typing
+import dataclasses
 
 
 SUBMISSION_FILENAME = 'submission.py'
@@ -54,6 +55,63 @@ def congruent(f, g):
     return all(eq(n, m) or n == m for n, m in zip(*(ast.walk(ast.parse(_func_source(x))) for x in [f, g])))
 
 
+@dataclasses.dataclass(frozen=True)
+class EvaluationTag:
+    name: str
+    description: str
+    background_color: str = '#333333'
+    font_color: str = '#cccccc'
+    visible: bool = True
+
+    def __new__(cls, name, description, background_color='#333333', font_color='#cccccc', visible=True):
+        name_pat = r'[0-9A-Za-z]{1,16}'
+        text_pat = r'[^\a\b\f\n\r\v]+'
+        color_pat = r'#[0-9A-Fa-f]{6}'
+        if not isinstance(visible, bool) or \
+           any(x is None for x in [re.fullmatch(name_pat, name),
+                                   re.fullmatch(text_pat, description, re.ASCII),
+                                   re.fullmatch(color_pat, background_color),
+                                   re.fullmatch(color_pat, font_color)]):
+           raise ValueError(name, description, background_color, font_color, visible)
+        return super().__new__(cls)
+
+    def to_html(self):
+        style = f'border-radius: 16%; padding: 4px 8px; margin: 1px 2px 1px; font-weight: 600; background-color: {self.background_color}; color: {self.font_color};'
+        return f'<span style="{style}">{self.name}</span>'
+
+
+class EvaluationTagMapping(tuple, collections.abc.Mapping):
+    def __init__(self, iterable):
+        self.__map = {t.name: t for t in iterable}
+
+    def __getitem__(self, k):
+        return self.__map[k]
+
+    def __contains__(self, k):
+        return k in self.__map
+
+
+PREDEFINED_TAGS = EvaluationTagMapping((
+    # rawcheck
+    EvaluationTag('SE', 'Syntax Error', '#ffbf3f', '#ffdfbf'),
+    EvaluationTag('SCE', 'Shell Command (!command) Exists', '#ffbf3f', '#ffdfbf'),
+    EvaluationTag('MCE', 'Magic Command (%command) Exists', '#ffbf3f', '#ffdfbf'),
+    EvaluationTag('UMI', 'Unsupported Module Imported', '#ffbf3f', '#ffdfbf'),
+    EvaluationTag('TE', 'Top-level Error', '#ffbf3f', '#ffdfbf'),
+    EvaluationTag('IOT', 'I/O found at Top level', '#ffbf3f', '#ffdfbf'),
+    EvaluationTag('QE', 'Question Exists', '#6f00ff', '#e5d1ff'),
+
+    # judge_util.test_method
+    EvaluationTag('CO', 'Correct Output',   '#7fbf7f', '#dfffdf'),
+    EvaluationTag('IO', 'Incorrect Output', '#bf7f7f', '#ffdfdf'),
+
+    # template_autograde
+    EvaluationTag('ND', 'No Definition', '#333333', '#cccccc'),
+    EvaluationTag('NF', 'Not Filled', '#333333', '#cccccc'),
+    EvaluationTag('IM', 'Import Missing', '#ffbf3f', '#ffdfbf'),
+))
+
+
 class JudgeTestCaseBase(unittest.TestCase):
     ok_tags = []
     fail_tags = []
@@ -85,10 +143,24 @@ def _decode_method_name(method_name):
 
 
 def set_ok_tag(self, ok_tag):
-    self.ok_tags = [ok_tag] if ok_tag else []
+    if ok_tag is None:
+        self.ok_tags = []
+    elif isinstance(ok_tag, EvaluationTag):
+        self.ok_tags = [ok_tag]
+    elif ok_tag in PREDEFINED_TAGS:
+        self.ok_tags = [PREDEFINED_TAGS[ok_tag]]
+    else:
+        raise ValueError(ok_tag)
 
 def set_fail_tag(self, fail_tag):
-    self.fail_tags = [fail_tag] if fail_tag else []
+    if fail_tag is None:
+        self.fail_tags = []
+    elif isinstance(fail_tag, EvaluationTag):
+        self.fail_tags = [fail_tag]
+    elif fail_tag in PREDEFINED_TAGS:
+        self.fail_tags = [PREDEFINED_TAGS[fail_tag]]
+    else:
+        raise ValueError(fail_tag)
 
 
 def check_method(testcase_cls, fail_tag=None):
@@ -228,6 +300,7 @@ class JudgeTestResult(unittest.TestResult):
         rows = [x._asdict() for x in self.to_table()]
         for row in rows:
             row['status'] = row['status'].name.lower()
+            row['tags'] = [dataclasses.asdict(t) for t in row['tags']]
         return json.dumps(rows, indent=1, ensure_ascii=False)
 
 
@@ -252,7 +325,7 @@ def render_summary_table(records):
   <tr>
     <td style="text-align: left;">{name}</td>
     <td style="text-align: left;">{status.to_html()}</td>
-    <td style="text-align: left;">{' '.join(tags)}</td>
+    <td style="text-align: left;">{' '.join(t.to_html() for t in tags)}</td>
   </tr>
 """.strip('\n') for name, status, tags, _, _ in records)
     tbody = f"""
