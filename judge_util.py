@@ -76,7 +76,7 @@ class EvaluationTag:
         return super().__new__(cls)
 
     def to_html(self):
-        style = f'border-radius: 16%; padding: 4px 8px; margin: 1px 2px 1px; font-weight: 600; background-color: {self.background_color}; color: {self.font_color};'
+        style = f'border-radius: 16%; padding: 4px 8px; margin: 1px 2px; font-weight: 600; background-color: {self.background_color}; color: {self.font_color};'
         return f'<span style="{style}">{self.name}</span>'
 
 
@@ -89,6 +89,21 @@ class EvaluationTagMapping(tuple, collections.abc.Mapping):
 
     def __contains__(self, k):
         return k in self.__map
+
+    def to_html(self):
+        if len(self) == 0:
+            return ''
+        name_width = max(len(t.name) for t in self)
+        dts = '\n'.join(f"""
+<dt style="padding: 2px 8px; margin: 2px 2px; clear: left; width: {name_width}em;">{t.to_html()}</dt>
+<dd style="padding: 2px 8px; margin: 2px 2px; float: left; width: {len(t.description)}em;">{t.description}</dd>
+""".strip('\n') for t in sorted(self, key=lambda x: x.name))
+        dl = f"""
+<dl style="clear: left;">
+{dts}
+</dl>
+""".strip('\n')
+        return dl
 
 
 PREDEFINED_TAGS = EvaluationTagMapping((
@@ -238,7 +253,7 @@ class ResultStatus(enum.Enum):
     UNKNOWN = enum.auto()
 
     def style(self):
-        common = 'border-radius: 16%; padding: 4px 8px; margin: 1px 2px 1px; font-weight: 600;'
+        common = 'border-radius: 16%; padding: 4px 8px; margin: 1px 2px; font-weight: 600;'
         if self == self.PASS:
             return common + 'background-color: #3fbf3f; color: #bfffbf;'
         elif self in (self.FAIL, self.ERROR):
@@ -267,7 +282,7 @@ class JudgeTestResult(unittest.TestResult):
         self.successes.add(test)
         _message_log.pop(test, None)
 
-    def to_table(self):
+    def to_table(self, stage_name=None):
         failures = {t: e for t, e in self.failures}
         errors = {t: e for t, e in self.errors}
         rows = []
@@ -293,6 +308,8 @@ class JudgeTestResult(unittest.TestResult):
                 err = ''
                 msg = ''
             name = _decode_method_name(t._testMethodName)
+            if stage_name is not None:
+                name = f'{stage_name[type(t)]}.{name}'
             rows.append(JudgeTestResult.Record(name, status, tags, err, msg))
         return rows
 
@@ -309,7 +326,11 @@ class JudgeTestRunner(unittest.TextTestRunner):
 
 
 def render_evaluation_html(rows):
-    return '<h3>Evaluation</h3>\n' + render_summary_table(rows) + '\n' + render_details_html(rows)
+    ts = set()
+    for _, _, tags, _, _ in rows:
+        ts.update(tags)
+    tagmap = EvaluationTagMapping(ts)
+    return f'<h3>Evaluation</h3><div style="float: left;">\n{render_summary_table(rows)}</div>\n<div style="clear: left;">{tagmap.to_html()}</div>\n{render_details_html(rows)}'
 
 def render_summary_table(records):
     thead = """
@@ -323,7 +344,7 @@ def render_summary_table(records):
 """.strip('\n')
     trs = '\n'.join(f"""
   <tr>
-    <td style="text-align: left;">{name}</td>
+    <td style="text-align: left;"><code>{name}</code></td>
     <td style="text-align: left;">{status.to_html()}</td>
     <td style="text-align: left;">{' '.join(t.to_html() for t in tags)}</td>
   </tr>
@@ -334,7 +355,7 @@ def render_summary_table(records):
 </tbody>
 """.strip('\n')
     table = f"""
-<table border="1">
+<table>
 {thead}
 {tbody}
 </table>
@@ -346,7 +367,7 @@ def render_details_html(rows):
         name, status, _, err, msg = record
         return f"""
 <section style="padding-top: 8px;">
-<h4>{status.to_html()} {name}</h6>
+<h4>{status.to_html()} <code>{name}</code></h6>
 <h5>Message</h5>
 <pre>
 {html.escape(msg.strip())}
@@ -366,7 +387,9 @@ def unittest_main(*, on_ipynb='IPython' in sys.modules):
     stream = io.StringIO()
     main = unittest.main(argv=[''], testRunner=JudgeTestRunner(stream, verbosity=2), exit=False)
     if on_ipynb:
+        caller_globals = inspect.currentframe().f_back.f_globals
+        stage_name = {v: n if v.name is None else v.name for n, v in caller_globals.items() if isinstance(v, type) and issubclass(v, JudgeTestStageBase)}
         import IPython.display
-        return IPython.display.HTML(render_evaluation_html(main.result.to_table()))
+        return IPython.display.HTML(render_evaluation_html(main.result.to_table(stage_name)))
     else:
         print(main.result.to_json())
