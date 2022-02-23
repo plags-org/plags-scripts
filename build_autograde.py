@@ -41,7 +41,6 @@ class FieldKey(enum.Enum):
     WARNING = enum.auto()
     DESCRIPTION = enum.auto()
     ANSWER_CELL_CONTENT = enum.auto()
-    COMMENTARY = enum.auto()
     EXAMPLE_ANSWERS = enum.auto()
     INSTRUCTIVE_TEST = enum.auto()
     SYSTEM_TESTCODE = enum.auto()
@@ -57,11 +56,10 @@ class FieldProperty(enum.Flag):
 FieldKey.WARNING.properties = FieldProperty(0)
 FieldKey.DESCRIPTION.properties = FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED
 FieldKey.ANSWER_CELL_CONTENT.properties = FieldProperty.SINGLE | FieldProperty.CODE
-FieldKey.COMMENTARY.properties = FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED | FieldProperty.OPTIONAL
 FieldKey.EXAMPLE_ANSWERS.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
 FieldKey.INSTRUCTIVE_TEST.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
 FieldKey.SYSTEM_TESTCODE.properties = FieldProperty.LIST | FieldProperty.CODE | FieldProperty.OPTIONAL
-FieldKey.PLAYGROUND.properties = FieldProperty.SINGLE | FieldProperty.CODE
+FieldKey.PLAYGROUND.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
 
 CellType = ipynb_util.NotebookCellType
 
@@ -86,7 +84,6 @@ class Exercise:
     title: str      # Title string
     description: List[Cell]                      # DESCRIPTION field
     answer_cell_content: Cell                    # ANSWER_CELL_CONTENT field
-    commentary: List[Cell]                       # COMMENTARY field
     example_answers: List[Cell]                  # EXAMPLE_ANSWERS field
     instructive_test: List[Cell]                 # INSTRUCTIVE_TEST field
     test_modules: List[Tuple[JudgeTestStageBase,str]] # List of (JudgeTestStageBase, content)
