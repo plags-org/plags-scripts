@@ -169,13 +169,11 @@ def question_exists(self):
 
 
 def code_cell(source_lines):
-    CellType = ipynb_util.NotebookCellType
-    Cell = build_autograde.Cell
-    return Cell(CellType.CODE, '\n'.join(source_lines).strip()).to_ipynb()
+    return ipynb_util.code_cell('\n'.join(source_lines).strip()).to_ipynb()
 
 
 def generate_given_test_code(exercise):
-    given_ast = ast.parse('\n'.join(c.source for c in exercise.instructive_test if c.cell_type == ipynb_util.NotebookCellType.CODE))
+    given_ast = ast.parse('\n'.join(c.source for c in exercise.instructive_test if c.cell_type == ipynb_util.CellType.CODE))
     typed_asserts = []
     for node in ast.walk(given_ast):
         if isinstance(node, ast.Assert):

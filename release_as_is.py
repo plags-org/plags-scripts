@@ -89,7 +89,7 @@ def release_ipynb(master_path, new_version, new_deadlines, new_drive):
 
 def extract_first_heading(cells):
     for cell_type, source in ipynb_util.normalized_cells(cells):
-        if cell_type == ipynb_util.NotebookCellType.MARKDOWN:
+        if cell_type == ipynb_util.CellType.MARKDOWN:
             m = re.search(r'^#+\s+(.*)$', source, re.MULTILINE)
             if m:
                 return m.groups()[0]

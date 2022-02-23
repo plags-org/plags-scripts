@@ -18,6 +18,7 @@ import itertools
 
 import ipynb_metadata
 import ipynb_util
+from ipynb_util import CellType, Cell
 import judge_setting
 from judge_util import JudgeTestStageBase
 
@@ -61,21 +62,6 @@ FieldKey.INSTRUCTIVE_TEST.properties = FieldProperty.LIST | FieldProperty.OPTION
 FieldKey.SYSTEM_TESTCODE.properties = FieldProperty.LIST | FieldProperty.CODE | FieldProperty.OPTIONAL
 FieldKey.PLAYGROUND.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
 
-CellType = ipynb_util.NotebookCellType
-
-class Cell(collections.namedtuple('Cell', ('cell_type', 'source'))):
-    def to_ipynb(self):
-        if self.cell_type == CellType.CODE:
-            return {'cell_type': self.cell_type.value,
-                    'execution_count': None,
-                    'metadata': {},
-                    'outputs': [],
-                    'source': self.source.splitlines(True)}
-        else:
-            return {'cell_type': self.cell_type.value,
-                    'metadata': {},
-                    'source': self.source.splitlines(True)}
-
 @dataclasses.dataclass
 class Exercise:
     key: str        # Key string
@@ -92,11 +78,11 @@ class Exercise:
 
     def answer_cell(self):
         s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_cell_content.source)
-        return Cell(CellType.CODE, s)
+        return ipynb_util.code_cell(s)
 
     def answer_cell_filled(self):
         s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.example_answers[0].source if self.example_answers else self.answer_cell_content.source)
-        return Cell(CellType.CODE, s)
+        return ipynb_util.code_cell(s)
 
 
 def split_testcode_cells(dirpath, cells):
@@ -110,11 +96,11 @@ Dummy = judge_util.teststage()
     test_modules = []
     for path in Exercise.builtin_test_modules:
         with open(path, encoding='utf-8') as f:
-            test_modules.append(split_testcode_cell(os.path.dirname(path), Cell(CellType.CODE, f.read())))
+            test_modules.append(split_testcode_cell(os.path.dirname(path), ipynb_util.code_cell(f.read())))
     if cells:
         test_modules.extend(split_testcode_cell(dirpath, x) for x in cells)
     else:
-        test_modules.append(split_testcode_cell('.', Cell(CellType.CODE, dummy_source)))
+        test_modules.append(split_testcode_cell('.', ipynb_util.code_cell(dummy_source)))
 
     assert len({stage.name for stage, _ in test_modules}) == len(test_modules), f'Stage names conflict: {test_modules}'
     for stage, _ in test_modules:
@@ -149,23 +135,23 @@ def split_cells(raw_cells: Iterable[dict]):
     results = {}
     current_key = None
     cells = []
-    for cell_type, source in ipynb_util.normalized_cells(raw_cells):
-        logging.debug('[TRACE] %s %s', current_key, repr(source if len(source) <= 64 else source[:64] + ' ...'))
-        if source.strip() == '':
+    for cell in ipynb_util.normalized_cells(raw_cells):
+        logging.debug('[TRACE] %s %s', current_key, repr(cell.source if len(cell.source) <= 64 else cell.source[:64] + ' ...'))
+        if cell.source == '':
             continue
 
-        if cell_type in (CellType.CODE, CellType.RAW):
+        if cell.cell_type in (CellType.CODE, CellType.RAW):
             assert current_key is not None
-            cells.append(Cell(cell_type, source))
+            cells.append(cell)
             continue
-        assert cell_type == CellType.MARKDOWN
+        assert cell.cell_type == CellType.MARKDOWN
 
-        matches = list(re.finditer(CONTENT_TYPE_REGEX, source))
+        matches = list(re.finditer(CONTENT_TYPE_REGEX, cell.source))
         if len(matches) == 0:
             assert current_key is not None
-            cells.append(Cell(cell_type, source))
+            cells.append(cell)
             continue
-        assert len(matches) == 1, f'Multiple field keys found in cell `{source}`.'
+        assert len(matches) == 1, f'Multiple field keys found in cell `{cell.source}`.'
 
         if current_key is not None:
             results[current_key] = cells
@@ -267,9 +253,9 @@ def create_bundled_intro(dirpath):
     dirname = os.path.basename(dirpath)
     try:
         raw_cells, _ = ipynb_util.load_cells(os.path.join(dirpath, INTRODUCTION_FILE))
-        return [Cell(t, s) for t, s in ipynb_util.normalized_cells(raw_cells)]
+        return list(ipynb_util.normalized_cells(raw_cells))
     except FileNotFoundError:
-        return [Cell(CellType.MARKDOWN, f'# {os.path.basename(dirpath)}')]
+        return [ipynb_util.markdown_cell(f'# {os.path.basename(dirpath)}')]
 
 
 def create_separate_form(exercise):
@@ -321,7 +307,7 @@ def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
 def cleanup_exercise_master(exercise, new_version=None):
     filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
     cells, metadata = ipynb_util.load_cells(filepath, True)
-    cells_new = [Cell(cell_type, source.strip()).to_ipynb() for cell_type, source in ipynb_util.normalized_cells(cells)]
+    cells_new = [x.to_ipynb() for x in ipynb_util.normalized_cells(cells)]
 
     if new_version is None:
         new_version = exercise.version
