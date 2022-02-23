@@ -371,6 +371,7 @@ def main():
     parser.add_argument('-d', '--deadlines', metavar='DEADLINES_JSON', help='Specify a JSON file of deadline settings.')
     parser.add_argument('-c', '--configuration', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
+    parser.add_argument('-f', '--form_dir', nargs='?', const='DIR', help='Specify a target directory of form generation (defualt: the same as the directory of each master).')
     parser.add_argument('-s', '--source', nargs='*', required=True, help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
     parser.add_argument('-gd', '--google_drive', nargs='?', const='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
     parser.add_argument('-ff', '--filled_form', nargs='?', const='form_filled_all.ipynb', help='Generate an all-filled form (default: form_filled_all.ipynb)')
@@ -405,14 +406,22 @@ def main():
     logging.info('[INFO] Creating bundled forms...')
     for dirpath, exercises in bundles.items():
         cells, metadata = create_bundled_form(dirpath, exercises)
-        filepath = os.path.join(dirpath, f'form_{os.path.basename(dirpath)}.ipynb')
+        if commandline_options.form_dir:
+            filepath = os.path.join(commandline_options.form_dir, f'{os.path.basename(dirpath)}.ipynb')
+        else:
+            filepath = os.path.join(dirpath, f'form_{os.path.basename(dirpath)}.ipynb')
         ipynb_util.save_as_notebook(filepath, cells, metadata)
+        logging.info(f'[INFO] Generated `{filepath}`')
 
     logging.info('[INFO] Creating separate forms...')
     for exercise in separates:
         cells, metadata = create_separate_form(exercise)
-        filepath = os.path.join(exercise.dirpath, f'form_{exercise.key}.ipynb')
+        if commandline_options.form_dir:
+            filepath = os.path.join(commandline_options.form_dir, f'{exercise.key}.ipynb')
+        else:
+            filepath = os.path.join(exercise.dirpath, f'form_{exercise.key}.ipynb')
         ipynb_util.save_as_notebook(filepath, cells, metadata)
+        logging.info(f'[INFO] Generated `{filepath}`')
 
     if commandline_options.library_placement:
         import judge_util

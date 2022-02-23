@@ -20,6 +20,7 @@ def main():
     parser.add_argument('-d', '--deadlines', metavar='DEADLINES_JSON', help='Specify a JSON file of deadline settings.')
     parser.add_argument('-c', '--compress_masters', action='store_true', help='Create a zip archive of masters.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
+    parser.add_argument('-f', '--form_dir', nargs='?', const='DIR', help='Specify a target directory of form generation (defualt: the same as the directory of each master).')
     parser.add_argument('-s', '--source', nargs='*', required=True, help='Specify source ipynb file(s).')
     parser.add_argument('-gd', '--google_drive', nargs='?', const='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
     commandline_args = parser.parse_args()
@@ -40,7 +41,7 @@ def main():
         assert key not in existing_keys, \
             f'[ERROR] Exercise key conflicts between `{filepath}` and `{existing_keys[key]}`.'
         existing_keys[key] = filepath
-        release_ipynb(filepath, commandline_args.renew_version, new_deadlines, new_drive)
+        release_ipynb(filepath, commandline_args.renew_version, new_deadlines, new_drive, commandline_args.form_dir)
 
     if commandline_args.compress_masters:
         with zipfile.ZipFile(ARCHIVE + '.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -50,7 +51,7 @@ def main():
         logging.info(f'[INFO] Released {ARCHIVE}.zip')
 
 
-def release_ipynb(master_path, new_version, new_deadlines, new_drive):
+def release_ipynb(master_path, new_version, new_deadlines, new_drive, form_dir=None):
     key, ext = os.path.splitext(os.path.basename(master_path))
     cells, metadata = ipynb_util.load_cells(master_path, True)
     title = extract_first_heading(cells)
@@ -81,7 +82,10 @@ def release_ipynb(master_path, new_version, new_deadlines, new_drive):
     ipynb_util.save_as_notebook(master_path, cells, master_metadata)
     logging.info(f'[INFO] Released master `{master_path}`')
 
-    form_path = os.path.join(os.path.dirname(master_path), f'form_{key}.ipynb')
+    if form_dir:
+        form_path = os.path.join(form_dir, f'{key}.ipynb')
+    else:
+        form_path = os.path.join(os.path.dirname(master_path), f'form_{key}.ipynb')
     submission_metadata = ipynb_metadata.submission_metadata({key: version}, False)
     ipynb_util.save_as_notebook(form_path, cells, submission_metadata)
     logging.info(f'[INFO] Released form `{form_path}`')
