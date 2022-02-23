@@ -75,8 +75,6 @@ autograde masterに対して個別にformを作るseparateモードでビルド�
 
 separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `form_ex1.ipynb` にまとめている．`form_ex1.ipynb` の導入部分として `intro.ipynb` があれば使われ，無ければディレクトリ名だけの見出し（`# ex1`）が自動で付けられる．
 
-`ans_ex1.ipynb`は，`ex1-{1,2}-find_nearest.ipynb`のanswerをまとめたものである．
-
 ビルドが，bundleモードになるかseparateモードになるは，`-s` で指定される対象がディレクトリかipynbかで決まる．それらを混合して指定することもできる．
 
 #### `autograde.zip` の生成
@@ -97,21 +95,6 @@ separateモードと違って，`ex1-{1,2}-find_nearest.ipynb`を1つのform `fo
 `autograde.zip` を作成する際に，副産物として `autograde/` を作るが，ビルド用ディレクトリなので消して問題ない．
 
 `-c` の引数 `judge_env.json` は，自動評価環境のパラメタをまとめたJSONファイルであり，PLAGS UTの管理者によって指定される．
-
-#### Answerファイル
-
-`-a` オプションを指定することで，解答例・解説・テストケースをまとめたanswerファイルを生成する．
-
-```sh
-./build_autograde.py -a -s exercises/autograde/ex1*
-```
-
-**効果**：
-
-* `exercises/autograde/ans_ex1-3-find_nearest_str.ipynb` の作成
-* `exercises/autograde/ex1/ans_ex1.ipynb` の作成
-
-このanswerファイルは，教員が授業中に表示させたり，TAに配布したりすることを想定している．
 
 #### All-filled form
 

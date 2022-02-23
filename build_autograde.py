@@ -218,14 +218,6 @@ def load_exercise(dirpath, exercise_key):
 
     return Exercise(**exercise_kwargs)
 
-def summarize_testcases(exercise: Exercise):
-    contents = []
-    is_not_decorator_line = lambda x: not x.startswith('@judge_util.')
-    for _, _, src in exercise.test_modules:
-        contents.extend(filter(is_not_decorator_line, itertools.dropwhile(is_not_decorator_line, src.splitlines())))
-        contents.append('')
-    return Cell(CellType.CODE, '\n'.join(contents).rstrip())
-
 def create_exercise_configuration(exercise: Exercise):
     tests_dir = os.path.join(CONF_DIR, exercise.key)
     os.makedirs(tests_dir, exist_ok=True)
@@ -274,17 +266,6 @@ def create_bundled_form(dirpath, exercises):
     return [c.to_ipynb() for c in body], metadata
 
 
-def create_bundled_answer(dirpath, exercises):
-    assert all(ex.dirpath == dirpath for ex in exercises)
-    body = create_bundled_intro(dirpath)
-    for exercise in exercises:
-        body.extend(exercise.description)
-        body.extend(exercise.example_answers)
-        body.append(summarize_testcases(exercise))
-        body.extend(exercise.commentary)
-    return [c.to_ipynb() for c in body], ipynb_metadata.COMMON_METADATA
-
-
 def create_bundled_intro(dirpath):
     dirname = os.path.basename(dirpath)
     try:
@@ -298,11 +279,6 @@ def create_separate_form(exercise):
     cells = itertools.chain(exercise.description, [exercise.answer_cell()], exercise.instructive_test)
     metadata =  ipynb_metadata.submission_metadata({exercise.key: exercise.version}, True)
     return [c.to_ipynb() for c in cells], metadata
-
-
-def create_separate_answer(exercise):
-    cells = itertools.chain(exercise.description, exercise.example_answers, [summarize_testcases(exercise)], exercise.commentary)
-    return [c.to_ipynb() for c in cells], ipynb_metadata.COMMON_METADATA
 
 
 def create_filled_form(exercises):
@@ -409,7 +385,6 @@ def update_exercise_master_metadata_formwise(separates, bundles, new_deadlines, 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
-    parser.add_argument('-a', '--answer', action='store_true', help='Generate answer ipynb.')
     parser.add_argument('-d', '--deadlines', metavar='DEADLINES_JSON', help='Specify a JSON file of deadline settings.')
     parser.add_argument('-c', '--configuration', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
@@ -455,19 +430,6 @@ def main():
         cells, metadata = create_separate_form(exercise)
         filepath = os.path.join(exercise.dirpath, f'form_{exercise.key}.ipynb')
         ipynb_util.save_as_notebook(filepath, cells, metadata)
-
-    if commandline_options.answer:
-        logging.info('[INFO] Creating bundled answers...')
-        for dirpath, exercises in bundles.items():
-            cells, metadata = create_bundled_answer(dirpath, exercises)
-            filepath = os.path.join(dirpath, f'ans_{os.path.basename(dirpath)}.ipynb')
-            ipynb_util.save_as_notebook(filepath, cells, metadata)
-
-        logging.info('[INFO] Creating separate answers...')
-        for exercise in separates:
-            cells, metadata = create_separate_answer(exercise)
-            filepath = os.path.join(exercise.dirpath, f'ans_{exercise.key}.ipynb')
-            ipynb_util.save_as_notebook(filepath, cells, metadata)
 
     if commandline_options.library_placement:
         import judge_util
