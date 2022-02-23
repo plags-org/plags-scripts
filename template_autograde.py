@@ -49,6 +49,8 @@ def generate_template(exercise):
                 given_test = generate_given_test_code(exercise)
                 gen_cells.extend(given_test)
                 gen_cells.append(generate_hidden_test_code(exercise))
+            if key == FieldKey.PLAYGROUND:
+                gen_cells.append(ipynb_util.code_cell('judge_util.unittest_main()').to_ipynb())
         else:
             gen_cells.append(c)
 
@@ -100,22 +102,15 @@ def generate_precheck_test_code(exercise):
                 required_mods.update(({node.module} if node.module else {x.name for x in node.names}) - predefined_mods)
         templates.extend(PRECHECK_IMPORT_CHECK_TEMPLATE.format(x.replace('.', '_'),x) for x in required_mods)
 
-    if any(isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) and node.targets[0].id == 'QUESTION_EXISTS'
-           for node in ast.walk(given_ast)):
-        templates.append(PRECHECK_QUESTION_EXISTS_TEMPLATE)
-
     return code_cell(templates)
 
 PRECHECK_HEADER_TEMPLATE = """
-## precheck
-# .judge/judge_util.py
-
 import sys
 sys.path.append('.judge')
 import judge_util # モジュール全体をそのままの名前でimport
 
 # この名前は任意
-Precheck = judge_util.testcase(score=1) # 正解時の得点（default: 1）
+Precheck = judge_util.teststage()
 """.lstrip()
 
 PRECHECK_NAME_CHECK_TEMPLATE = """
@@ -152,19 +147,6 @@ PRECHECK_IMPORT_CHECK_TEMPLATE = """
 def {}_imported(self):                   # 成功・エラーの時にはタグは付かない
     import sys
     self.assertIn('{}', sys.modules) # importされていなかったら失敗
-""".lstrip()
-
-PRECHECK_QUESTION_EXISTS_TEMPLATE = """
-# 得点に影響しないタグ付け
-@judge_util.check_method(Precheck)
-def question_exists(self):
-    try:
-        QUESTION_EXISTS
-    except NameError:
-        pass
-    else:
-        if QUESTION_EXISTS:
-            judge_util.set_ok_tag(self, 'QE')
 """.lstrip()
 
 
@@ -224,15 +206,11 @@ def generate_given_test_code(exercise):
     return [code_cell(templates)] if assert_methods else []
 
 GIVEN_TEST_HEADER_TEMPLATE = """
-## given
-# .judge/judge_util.py
-
 import sys
 sys.path.append('.judge')
 import judge_util # モジュール全体をそのままの名前でimport
 {}
-# この名前は任意
-Given = judge_util.testcase(score=1) # 正解時の得点（default: 1）
+Given = judge_util.teststage()
 """.lstrip()
 
 GIVEN_TEST_TEMPLATE = """
@@ -248,15 +226,11 @@ def generate_hidden_test_code(exercise):
     return code_cell([HIDDEN_TEST_HEADER_TEMPLATE.format(f'\n{imports}\n' if imports else '')])
 
 HIDDEN_TEST_HEADER_TEMPLATE = """
-## hidden
-# .judge/judge_util.py
-
 import sys
 sys.path.append('.judge')
 import judge_util # モジュール全体をそのままの名前でimport
 {}
-# この名前は任意
-Hidden = judge_util.testcase(score=1) # 正解時の得点（default: 1）
+Hidden = judge_util.teststage()
 
 # 検査対象を実行して出力を比較するテスト
 @judge_util.test_method(Hidden) # 成功時にCOタグ，失敗時にIOタグを付与
