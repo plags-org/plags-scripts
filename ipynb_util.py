@@ -29,7 +29,7 @@ class Cell(collections.namedtuple('Cell', ('cell_type', 'source'))):
         return cls(CellType.CODE, src)
 
     @classmethod
-    def markdown_cell(src):
+    def markdown_cell(cls, src):
         return cls(CellType.MARKDOWN, src)
 
 code_cell = Cell.code_cell

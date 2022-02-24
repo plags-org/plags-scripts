@@ -53,14 +53,15 @@ class FieldProperty(enum.Flag):
     OPTIONAL = enum.auto()
     MARKDOWN_HEADED = enum.auto()
     CODE = enum.auto()
+    IGNORED = enum.auto()
 
-FieldKey.WARNING.properties = FieldProperty(0)
+FieldKey.WARNING.properties = FieldProperty.IGNORED
 FieldKey.DESCRIPTION.properties = FieldProperty.LIST | FieldProperty.MARKDOWN_HEADED
 FieldKey.ANSWER_CELL_CONTENT.properties = FieldProperty.SINGLE | FieldProperty.CODE
 FieldKey.EXAMPLE_ANSWERS.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
 FieldKey.INSTRUCTIVE_TEST.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
 FieldKey.SYSTEM_TESTCODE.properties = FieldProperty.LIST | FieldProperty.CODE | FieldProperty.OPTIONAL
-FieldKey.PLAYGROUND.properties = FieldProperty.LIST | FieldProperty.OPTIONAL
+FieldKey.PLAYGROUND.properties = FieldProperty.IGNORED
 
 @dataclasses.dataclass
 class Exercise:
@@ -85,7 +86,7 @@ class Exercise:
         return ipynb_util.code_cell(s)
 
 
-def split_testcode_cells(dirpath, cells):
+def interpret_testcode_cells(dirpath, cells):
     dummy_source = """
 import sys
 sys.path.append('.judge')
@@ -96,11 +97,11 @@ Dummy = judge_util.teststage()
     test_modules = []
     for path in Exercise.builtin_test_modules:
         with open(path, encoding='utf-8') as f:
-            test_modules.append(split_testcode_cell(os.path.dirname(path), ipynb_util.code_cell(f.read())))
+            test_modules.append(interpret_testcode(os.path.dirname(path), f.read()))
     if cells:
-        test_modules.extend(split_testcode_cell(dirpath, x) for x in cells)
+        test_modules.extend(interpret_testcode(dirpath, x.source) for x in cells)
     else:
-        test_modules.append(split_testcode_cell('.', ipynb_util.code_cell(dummy_source)))
+        test_modules.append(interpret_testcode('.', dummy_source))
 
     assert len({stage.name for stage, _ in test_modules}) == len(test_modules), f'Stage names conflict: {test_modules}'
     for stage, _ in test_modules:
@@ -112,13 +113,13 @@ Dummy = judge_util.teststage()
     return test_modules
 
 
-def split_testcode_cell(dirpath, cell: Cell):
-    assert cell.cell_type == CellType.CODE
+def interpret_testcode(dirpath, source):
+    source = source.strip()
     env = {'__name__': '__main__'}
     path = sys.path[:]
     cwd = os.getcwd()
     os.chdir(dirpath)
-    exec(cell.source, env)
+    exec(source, env)
     sys.path = path
     os.chdir(cwd)
     file_paths = []
@@ -127,12 +128,12 @@ def split_testcode_cell(dirpath, cell: Cell):
     (name, stage), *_ = decls
     if stage.name is None:
         stage.name = name
-    return (stage, cell.source + '\n')
+    return (stage, source + '\n')
 
 
-def split_cells(raw_cells: Iterable[dict]):
+def split_cells_into_fields(field_enum_type, raw_cells: Iterable[dict]):
     CONTENT_TYPE_REGEX = r'\*\*\*CONTENT_TYPE:\s*(.+?)\*\*\*'
-    results = {}
+    fields = {}
     current_key = None
     cells = []
     for cell in ipynb_util.normalized_cells(raw_cells):
@@ -154,34 +155,30 @@ def split_cells(raw_cells: Iterable[dict]):
         assert len(matches) == 1, f'Multiple field keys found in cell `{cell.source}`.'
 
         if current_key is not None:
-            results[current_key] = cells
+            fields[current_key] = cells
             cells = []
         current_key = matches[0][1]
 
-    results[current_key] = cells
-    return results
+    fields[current_key] = cells
 
-def load_exercise(dirpath, exercise_key):
-    raw_cells, metadata = ipynb_util.load_cells(os.path.join(dirpath, exercise_key + '.ipynb'))
-    version = ipynb_metadata.master_metadata_version(metadata)
-    exercise_kwargs = {'key': exercise_key, 'dirpath': dirpath, 'version': version}
-    for field_key, cells in split_cells(raw_cells).items():
-        field_enum = getattr(FieldKey, field_key)
-        if field_enum in (FieldKey.WARNING, FieldKey.PLAYGROUND):
+    # Validate fields by field_enum_type
+    for field_key, cells in fields.items():
+        field_enum = getattr(field_enum_type, field_key)
+        if FieldProperty.IGNORED in field_enum.properties:
             continue
-        logging.debug(f'[TRACE] Validate field `{field_key}`')
+        logging.debug(f'[TRACE] Validate field `{field_enum}`')
 
-        if (FieldProperty.OPTIONAL | FieldProperty.OPTIONAL) in field_enum.properties:
+        if (FieldProperty.LIST | FieldProperty.OPTIONAL) in field_enum.properties:
             pass
-        elif (FieldProperty.OPTIONAL) in field_enum.properties:
-            assert len(cells) <= 1, f'Field of `{field_key}` must have at most 1 cell but has {len(cells)}.'
+        elif FieldProperty.OPTIONAL in field_enum.properties:
+            assert len(cells) <= 1, f'Field of `{field_enum}` must have at most 1 cell but has {len(cells)}.'
         elif FieldProperty.LIST in field_enum.properties:
-            assert len(cells) > 0, f'Field of `{field_key}` must not be empty.'
+            assert len(cells) > 0, f'Field of `{field_enum}` must not be empty.'
         elif FieldProperty.SINGLE in field_enum.properties:
-            assert len(cells) == 1, f'Field of `{field_key}` must have 1 cell.'
+            assert len(cells) == 1, f'Field of `{field_enum}` must have 1 cell.'
 
         if FieldProperty.CODE in field_enum.properties:
-            assert all(x.cell_type == CellType.CODE for x in cells), f'Field of `{field_key}` must have only code cell(s).'
+            assert all(x.cell_type == CellType.CODE for x in cells), f'Field of `{field_enum}` must have only code cell(s).'
 
         if len(cells) > 0 and FieldProperty.MARKDOWN_HEADED in field_enum.properties:
             assert cells[0].cell_type == CellType.MARKDOWN
@@ -189,17 +186,28 @@ def load_exercise(dirpath, exercise_key):
             first_line = cells[0].source.strip().splitlines()[0]
             m = re.fullmatch(first_line_regex, first_line)
             assert m is not None, f'The first content cell does not start with a heading in Markdown: `{first_line}`.'
-            if field_enum == FieldKey.DESCRIPTION:
-                exercise_kwargs['title'] = m.groups()[0]
 
-        if field_enum == FieldKey.SYSTEM_TESTCODE:
-            exercise_kwargs['test_modules'] = split_testcode_cells(dirpath, cells)
-        elif field_enum == FieldKey.ANSWER_CELL_CONTENT:
-            exercise_kwargs[field_key.lower()] = cells[0]
-        else:
-            exercise_kwargs[field_key.lower()] = cells
+        yield field_enum, cells
 
+
+def load_exercise(dirpath, exercise_key):
+    raw_cells, metadata = ipynb_util.load_cells(os.path.join(dirpath, exercise_key + '.ipynb'))
+    version = ipynb_metadata.master_metadata_version(metadata)
+
+    fields = dict(split_cells_into_fields(FieldKey, raw_cells))
+
+    heading_regex = r'#+\s+(.*)'
+    description_first_line = fields[FieldKey.DESCRIPTION][0].source.strip().splitlines()[0]
+    title = re.fullmatch(heading_regex, description_first_line).groups()[0]
+
+    test_modules = interpret_testcode_cells(dirpath, fields.pop(FieldKey.SYSTEM_TESTCODE))
+
+    exercise_kwargs = {
+        'key': exercise_key, 'dirpath': dirpath, 'version': version, 'title': title, 'test_modules': test_modules,
+        **{f.name.lower(): cs[0] if f == FieldKey.ANSWER_CELL_CONTENT else cs for f, cs in fields.items()},
+    }
     return Exercise(**exercise_kwargs)
+
 
 def create_exercise_configuration(exercise: Exercise):
     tests_dir = os.path.join(CONF_DIR, exercise.key)
