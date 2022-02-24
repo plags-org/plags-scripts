@@ -42,7 +42,7 @@ def convert_master(filepath):
             key = matches[0][1]
             if key in REWRITE_RULES:
                 c['source'] = REWRITE_RULES[key].splitlines(True)
-            if key == 'SYSTEM_TEST_CASES_EXECUTE_CELL':
+            if key == 'PLAYGROUND':
                 cells[i+1]['source'] = ['judge_util.unittest_main()']
 
     new_cells = []
@@ -61,59 +61,19 @@ def convert_master(filepath):
 
 
 DELETED_FIELDS = {
-    'SYSTEM_TEST_SETTING',
+    'COMMENTARY',
 }
 
 REWRITE_RULES = {
-    'CONTENT': """
-***CONTENT_TYPE: DESCRIPTION***  
-課題説明を書いてください．
-`## 課題タイトル` から始まるMarkdownセルで始めてください．
-その`課題タイトル`は，課題一覧に表示されます．
-複数セル可，省略不可．
-""".strip(),
-    'STUDENT_CODE_CELL': """
-***CONTENT_TYPE: ANSWER_CELL_CONTENT***  
-解答セルにおける既定のコードを記述してください．
-複数セル不可，空白可．
-""".strip(),
-    'EXPLANATION': """
-***CONTENT_TYPE: COMMENTARY***  
-解説を記述してください．
-`## ...` から始まるMarkdownセルで始めてください．
-これは，解説用ipynbのためにあります．
-複数セル可，省略可．
-""".strip(),
-    'ANSWER_EXAMPLES': """
-***CONTENT_TYPE: EXAMPLE_ANSWERS***  
-解答例をコードセルに記述してください．
-最初のセルは，模範解答であることが期待されます．
-ここで記述されたコードは，自動評価には使われませんが，このipynb上でテストコードを実行したり，補助ipynbを生成する際に使われます．
-複数セル可，省略可．
-""".strip(),
-    'STUDENT_TESTS': """
-***CONTENT_TYPE: INSTRUCTIVE_TEST***  
-学生向けのテスト指示とテストコードを記述してください．
-複数セル可，省略可．
-""".strip(),
-    'SYSTEM_TEST_CASES': """
+    'SYSTEM_TESTCODE': """
 ***CONTENT_TYPE: SYSTEM_TESTCODE***  
 次の点に留意して自動評価に使われるテストコードを記述してください．
 
 * **1つのコードセルが1つの独立したモジュール**になります．
-* 各セルの先頭行には，**一意なモジュール名**をコメントで指定してください．
-* 2行目以降は，**利用する外部ファイルの相対パス**を行毎にコメントで指定してください．指定されるファイルは，このipynbのディレクトリ以下に存在する必要があります．
-* それらのヘッダコメントが終わった後から，プログラムコードとして解釈されます．
 * 1つのモジュールが1つのstageとして扱われ，セルの出現順で実行されます．
+* 各セルに `judge_util.teststage` が返すクラスを，**グローバルに1つ**定義してください．
 
 複数セル可，省略可．
-""".strip(),
-    'SYSTEM_TEST_CASES_EXECUTE_CELL': """
-***CONTENT_TYPE: PLAYGROUND***  
-このセルより下は，課題のビルドに影響しない自由編集領域です．
-
-次のコードは，上で定義したテストコードを，このipynb上で実行するためのものです．
-自動評価と同等の結果を得ます．
 """.strip(),
 }
 
