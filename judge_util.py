@@ -318,7 +318,7 @@ class JudgeTestResult(unittest.TestResult):
         for row in rows:
             row['status'] = row['status'].name.lower()
             row['tags'] = [dataclasses.asdict(t) for t in row['tags']]
-        return json.dumps(rows, indent=1, ensure_ascii=False)
+        return rows
 
 
 class JudgeTestRunner(unittest.TextTestRunner):
@@ -392,4 +392,4 @@ def unittest_main(*, on_ipynb='IPython' in sys.modules):
         import IPython.display
         return IPython.display.HTML(render_evaluation_html(main.result.to_table(stage_name)))
     else:
-        print(main.result.to_json())
+        print('', json.dumps(main.result.to_json(), ensure_ascii=False), sep='\n')
