@@ -9,7 +9,7 @@ import zipfile
 import argparse
 import dataclasses
 import collections
-from typing import List, Iterable, Tuple, Callable
+from typing import Iterable, Tuple
 
 import json
 import hashlib
@@ -69,11 +69,11 @@ class Exercise:
     dirpath: str    # Directory path
     version: str    # Version string
     title: str      # Title string
-    description: List[Cell]                      # DESCRIPTION field
-    answer_cell_content: Cell                    # ANSWER_CELL_CONTENT field
-    example_answers: List[Cell]                  # EXAMPLE_ANSWERS field
-    instructive_test: List[Cell]                 # INSTRUCTIVE_TEST field
-    test_modules: List[Tuple[JudgeTestStageBase,str]] # List of (JudgeTestStageBase, content)
+    description: Iterable[Cell]                      # DESCRIPTION field
+    answer_cell_content: Cell                        # ANSWER_CELL_CONTENT field
+    example_answers: Iterable[Cell]                  # EXAMPLE_ANSWERS field
+    instructive_test: Iterable[Cell]                 # INSTRUCTIVE_TEST field
+    test_modules: Iterable[Tuple[JudgeTestStageBase,str]] # Iterable of modules, which are of type (Stage class, module content)
 
     builtin_test_modules = [] # List of module paths
 
