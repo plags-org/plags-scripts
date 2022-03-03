@@ -130,6 +130,7 @@ PREDEFINED_TAGS = EvaluationTagMapping((
 class JudgeTestCaseBase(unittest.TestCase):
     ok_tags = []
     fail_tags = []
+    error_tag_rules = {}
 
 class JudgeTestStageBase(JudgeTestCaseBase):
     mode = 'append' # or 'separate'
@@ -177,6 +178,18 @@ def set_fail_tag(self, fail_tag):
     else:
         raise ValueError(fail_tag)
 
+def set_error_tag(self, error_tag, exception=Exception):
+    if not issubclass(exception, Exception):
+        raise ValueError(exception)
+    if error_tag is None:
+        self.error_tag_rules.pop(exception, None)
+    elif isinstance(error_tag, EvaluationTag):
+        self.error_tag_rules = {**self.error_tag_rules, exception: error_tag}
+    elif error_tag in PREDEFINED_TAGS:
+        self.error_tag_rules = {**self.error_tag_rules, exception: PREDEFINED_TAGS[error_tag]}
+    else:
+        raise ValueError(error_tag)
+
 
 def check_method(testcase_cls, fail_tag=None):
     assert issubclass(testcase_cls, JudgeTestCaseBase)
@@ -190,16 +203,13 @@ def check_method(testcase_cls, fail_tag=None):
     return decorator
 
 
-def name_error_trap(testcase_cls, fail_tag=None):
+def name_error_trap(testcase_cls, error_tag):
     assert issubclass(testcase_cls, JudgeTestCaseBase)
     def decorator(func):
-        name = _encode_method_name(func.__name__)
         def wrapper(self):
-            set_fail_tag(self, fail_tag)
-            try:
-                func()
-            except NameError:
-                self.fail()
+            set_error_tag(self, error_tag, NameError)
+            func()
+        name = _encode_method_name(func.__name__)
         setattr(testcase_cls, name, wrapper)
         return func
     return decorator
@@ -272,6 +282,7 @@ class JudgeTestResult(unittest.TestResult):
         super().__init__(stream, descriptions, verbosity)
         self.successes = set()
         self.run_tests = []
+        self.exc_info = {}
 
     def startTest(self, test):
         super().startTest(test)
@@ -281,6 +292,10 @@ class JudgeTestResult(unittest.TestResult):
         super().addSuccess(test)
         self.successes.add(test)
         _message_log.pop(test, None)
+
+    def addError(self, test, err):
+        super().addError(test, err)
+        self.exc_info[test] = err
 
     def to_table(self, stage_name=None):
         failures = {t: e for t, e in self.failures}
@@ -299,7 +314,7 @@ class JudgeTestResult(unittest.TestResult):
                 msg = _message_log.get(t, '')
             elif t in errors:
                 status = ResultStatus.ERROR
-                tags = []
+                tags = [tag for e, tag in t.error_tag_rules.items() if issubclass(self.exc_info[t][0], e)]
                 err = errors[t]
                 msg = _message_log.get(t, '')
             else:
