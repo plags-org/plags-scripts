@@ -203,18 +203,6 @@ def check_method(testcase_cls, fail_tag=None):
     return decorator
 
 
-def name_error_trap(testcase_cls, error_tag):
-    assert issubclass(testcase_cls, JudgeTestCaseBase)
-    def decorator(func):
-        def wrapper(self):
-            set_error_tag(self, error_tag, NameError)
-            func()
-        name = _encode_method_name(func.__name__)
-        setattr(testcase_cls, name, wrapper)
-        return func
-    return decorator
-
-
 def test_method(testcase_cls):
     assert issubclass(testcase_cls, JudgeTestCaseBase)
     def decorator(func):

@@ -78,7 +78,6 @@ def generate_precheck_test_code(exercise):
                 context_funcs.append(node)
 
     templates = [PRECHECK_HEADER_TEMPLATE]
-    templates.extend(PRECHECK_NAME_CHECK_TEMPLATE.format(x,x) for x in itertools.chain(ellipsis_vars, ellipsis_funcs))
     templates.extend(PRECHECK_ELLIPSIS_VAR_CHECK_TEMPLATE.format(x,x) for x in ellipsis_vars)
     templates.extend(PRECHECK_ELLIPSIS_FUNC_CHECK_TEMPLATE.format(x,x) for x in ellipsis_funcs)
     templates.extend(PRECHECK_CONGRUENT_FUNC_CHECK_TEMPLATE.format(x.name,x.name,x.name) for x in context_funcs)
@@ -113,31 +112,27 @@ import judge_util # モジュール全体をそのままの名前でimport
 Precheck = judge_util.teststage()
 """.lstrip()
 
-PRECHECK_NAME_CHECK_TEMPLATE = """
-# テスト対象の定義の有無を検査
-@judge_util.name_error_trap(Precheck, 'ND') # NameErrorを捉えてタグ付けする
-def {}_exists(): # selfを取らない
-    {} # 定義の有無を調べたい名前を参照（定義が無いときに NameError を起こす）
-""".lstrip()
-
 PRECHECK_ELLIPSIS_VAR_CHECK_TEMPLATE = """
 # 検査対象を実行しない静的検査
-@judge_util.check_method(Precheck, 'NF') # 失敗時に付くタグ（オプショナル）
-def {}_filled(self):                     # 成功・エラーの時にはタグは付かない
+@judge_util.check_method(Precheck, 'NF') # 失敗（≠エラー）時に付くタグ（オプショナル）
+def {}_filled(self):
+    judge_util.set_error_tag(self, 'ND', NameError) # NameErrorが生じたらNDタグをつける
     self.assertNotEqual({}, ...) # ...と等しいなら失敗
 """.lstrip()
 
 PRECHECK_ELLIPSIS_FUNC_CHECK_TEMPLATE = """
 # 検査対象を実行しない静的検査
-@judge_util.check_method(Precheck, 'NF') # 失敗時に付くタグ（オプショナル）
-def {}_filled(self):                     # 成功・エラーの時にはタグは付かない
+@judge_util.check_method(Precheck, 'NF') # 失敗（≠エラー）時に付くタグ（オプショナル）
+def {}_filled(self):
+    judge_util.set_error_tag(self, 'ND', NameError) # NameErrorが生じたらNDタグをつける
     self.assertFalse(judge_util.is_ellipsis_body({})) # ...のみをbodyに持つなら失敗
 """.lstrip()
 
 PRECHECK_CONGRUENT_FUNC_CHECK_TEMPLATE = """
 # 検査対象を実行しない静的検査
-@judge_util.check_method(Precheck, 'NF') # 失敗時に付くタグ（オプショナル）
-def {}_filled(self):                     # 成功・エラーの時にはタグは付かない
+@judge_util.check_method(Precheck, 'NF') # 失敗（≠エラー）時に付くタグ（オプショナル）
+def {}_filled(self):
+    judge_util.set_error_tag(self, 'ND', NameError) # NameErrorが生じたらNDタグをつける
     self.assertFalse(judge_util.congruent({}, _predefined_{})) # 既定のコードとASTレベルで合同なら失敗
 """.lstrip()
 
