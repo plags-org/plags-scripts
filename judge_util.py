@@ -13,7 +13,15 @@ import typing
 import dataclasses
 
 
-SUBMISSION_FILENAME = 'submission.py'
+class ExerciseStyle(enum.Enum):
+    AS_IS = enum.auto()
+    FORMATTED = enum.auto()
+
+    def submission_filename(self):
+        return {
+            ExerciseStyle.AS_IS: 'submission.ipynb',
+            ExerciseStyle.FORMATTED: 'submission.py',
+        }[self]
 
 
 def _func_source(f):
@@ -132,15 +140,22 @@ class JudgeTestCaseBase(unittest.TestCase):
     error_tag_rules = {}
 
 class JudgeTestStageBase(JudgeTestCaseBase):
-    mode = 'append' # or 'separate'
+    mode: str # 'append' or 'separate'
     name: typing.Optional[str]
     required_files: list
     score: typing.Optional[int]
     unsuccessful_score: typing.Optional[int]
+    exercise_style: ExerciseStyle
 
-def teststage(name=None, *, score=1, unsuccessful_score=0, required_files=None):
+
+def teststage(name=None, *, score=1, unsuccessful_score=0, required_files=None, exercise_style=ExerciseStyle.FORMATTED):
     class JudgeTestStage(JudgeTestStageBase):
         pass
+    JudgeTestStage.exercise_style = exercise_style
+    JudgeTestStage.mode = {
+            ExerciseStyle.AS_IS: 'separate',
+            ExerciseStyle.FORMATTED: 'append', # Overridable with 'separate'
+        }[exercise_style]
     JudgeTestStage.name = name
     JudgeTestStage.score = score
     JudgeTestStage.unsuccessful_score = unsuccessful_score

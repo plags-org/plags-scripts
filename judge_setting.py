@@ -2,8 +2,6 @@
 
 import json
 
-from judge_util import SUBMISSION_FILENAME
-
 
 judge_parameters = {
     'default': {
@@ -26,7 +24,7 @@ def load_judge_parameters(json_path):
         judge_parameters['override'][ex_key] = {k: d[k] for k in judge_parameters['default'] if k in d}
 
 
-def generate_judge_setting(exercise_key, exercise_version, test_stages):
+def generate_judge_setting(exercise_key, exercise_version, test_stages, exercise_style):
     params = {k: judge_parameters['override'].get(exercise_key, {}).get(k, v) for k, v in judge_parameters['default'].items()}
     env, time_limit, memory_limit = params['environment'], params['time_limit'], params['memory_limit']
     states = {
@@ -51,7 +49,7 @@ def generate_judge_setting(exercise_key, exercise_version, test_stages):
             'version': exercise_version
         },
         'judge': {
-            'preprocess': {'rename': SUBMISSION_FILENAME},
+            'preprocess': {'rename': exercise_style.submission_filename()},
             'environment': {'name': env, 'version': ''},
             'sandbox': {
                 'name': 'Firejail',

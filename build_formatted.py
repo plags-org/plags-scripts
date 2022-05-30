@@ -207,7 +207,7 @@ def create_exercise_configuration(exercise: Exercise):
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
 
     version = ipynb_metadata.master_metadata_version(metadata)
-    setting = judge_setting.generate_judge_setting(exercise.key, version, [stage for stage, _, _ in exercise.test_modules])
+    setting = judge_setting.generate_judge_setting(exercise.key, version, [stage for stage, _, _ in exercise.test_modules], judge_util.ExerciseStyle.FORMATTED)
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
         json.dump(setting, f, indent=1, ensure_ascii=False)
 

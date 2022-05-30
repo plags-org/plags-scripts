@@ -5,7 +5,7 @@ RawCheck.mode = 'separate'
 
 @judge_util.check_method(RawCheck, 'TE')
 def toplevel_check(self):
-    with open(judge_util.SUBMISSION_FILENAME, encoding='utf-8') as f:
+    with open(judge_util.submission_filename(), encoding='utf-8') as f:
         src = f.read()
     try:
         def canary_open(*args, **kwargs):
@@ -31,7 +31,7 @@ def toplevel_check(self):
 
 @judge_util.check_method(RawCheck)
 def question_exists(self):
-    with open(judge_util.SUBMISSION_FILENAME, encoding='utf-8') as f:
+    with open(judge_util.submission_filename(), encoding='utf-8') as f:
         src = f.read()
     if flag_assignment_exists(src, 'QUESTION_EXISTS'):
         judge_util.set_ok_tag(self, 'QE')
