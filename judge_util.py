@@ -174,7 +174,14 @@ def exec_answer_cell(JudgeTestStage):
             with open(ExerciseStyle.FORMATTED.submission_filename(), 'w', encoding='utf-8') as f:
                 print(extract_answer_cell_source(cls), file=f)
         mod_name = ExerciseStyle.FORMATTED.submission_filename().rsplit('.')[0]
-        cls.answer = importlib.reload(sys.modules[mod_name]) if mod_name in sys.modules else importlib.import_module(mod_name)
+        if mod_name in sys.modules:
+            mod = sys.modules[mod_name]
+            for name in dir(mod):
+                if not name.startswith('__'):
+                    delattr(mod, name)
+            cls.answer = importlib.reload(mod)
+        else:
+            cls.answer = importlib.import_module(mod_name)
     JudgeTestStage.setUpClass = setUpClass
     @classmethod
     def tearDownClass(cls):
