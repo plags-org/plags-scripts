@@ -177,6 +177,51 @@ def teststage(name=None, *, score=1, unsuccessful_score=0, required_files=None, 
     return JudgeTestStage
 
 
+def extract_special_unique_cell(ipynb, name):
+    specials = [cell for cell in ipynb['cells'] if cell['metadata'].get('name') == name and not cell['metadata'].get('deletable', True)]
+    if not specials:
+        raise KeyError(f'Found no special cell of name `{repr(name)}`')
+    if len(specials) > 1:
+        raise ValueError(f'Found multiple special cells of name `{repr(name)}`')
+    return specials[0]
+
+
+ANSWER_CELL_NAME = 'answer_cell'
+QUESTION_CELL_NAME = 'question_cell'
+
+def extract_answer_cell_source(self):
+    assert self.mode == 'separate'
+    if self.exercise_style == ExerciseStyle.AS_IS:
+        try:
+            return cell_source_str(extract_special_unique_cell(self.submission, ANSWER_CELL_NAME))
+        except KeyError:
+            return ''
+    elif self.exercise_style == ExerciseStyle.FORMATTED:
+        return self.submission
+
+def extract_question_cell_source(self):
+    assert self.exercise_style == ExerciseStyle.AS_IS and self.mode == 'separate'
+    try:
+        return cell_source_str(extract_special_unique_cell(self.submission, QUESTION_CELL_NAME))
+    except KeyError:
+        return ''
+
+
+def cell_source_str(cell):
+    if isinstance(cell['source'], str):
+        return cell['source']
+    if isinstance(cell['source'], list):
+        return ''.join(cell['source'])
+    raise ValueError(f'Unexpected source type: {type(cell.source)}')
+
+
+def answer_cell_metadata():
+    return {'name': ANSWER_CELL_NAME, 'deletable': False}
+
+def question_cell_metadata():
+    return {'name': QUESTION_CELL_NAME, 'deletable': False}
+
+
 def _encode_method_name(name):
     assert isinstance(name, str) and len(name) > 0
     return f'test_{name}'
