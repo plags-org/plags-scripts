@@ -146,6 +146,20 @@ class JudgeTestStageBase(JudgeTestCaseBase):
     score: typing.Optional[int]
     unsuccessful_score: typing.Optional[int]
     exercise_style: ExerciseStyle
+    submission: typing.Union[str,dict,None] # str for FORMATTED, dict for AS_IS in 'separate' mode; None for 'append' mode
+
+    @classmethod
+    def setUpClass(cls):
+        if cls.mode == 'separate':
+            filename = cls.exercise_style.submission_filename()
+            with open(filename, encoding='utf-8') as f:
+                cls.submission = {
+                    'py': lambda: f.read(),
+                    'ipynb': lambda: json.load(f),
+                }[filename.rsplit('.', 1)[1]]()
+        else:
+            assert cls.mode == 'append'
+            cls.submission = None
 
 
 def teststage(name=None, *, score=1, unsuccessful_score=0, required_files=None, exercise_style=ExerciseStyle.FORMATTED):
