@@ -11,6 +11,8 @@ import json
 import html
 import typing
 import dataclasses
+import types
+import importlib
 
 
 class ExerciseStyle(enum.Enum):
@@ -147,6 +149,7 @@ class JudgeTestStageBase(JudgeTestCaseBase):
     unsuccessful_score: typing.Optional[int]
     exercise_style: ExerciseStyle
     submission: typing.Union[str,dict,None] # str for FORMATTED, dict for AS_IS in 'separate' mode; None for 'append' mode
+    answer: typing.Optional[types.ModuleType] # module of an answer cell source if executed
 
     @classmethod
     def setUpClass(cls):
@@ -162,7 +165,26 @@ class JudgeTestStageBase(JudgeTestCaseBase):
             cls.submission = None
 
 
-def teststage(name=None, *, score=1, unsuccessful_score=0, required_files=None, exercise_style=ExerciseStyle.FORMATTED):
+def exec_answer_cell(JudgeTestStage):
+    assert JudgeTestStage.mode == 'separate'
+    @classmethod
+    def setUpClass(cls):
+        JudgeTestStageBase.setUpClass.__func__(cls)
+        if cls.exercise_style == ExerciseStyle.AS_IS:
+            with open(ExerciseStyle.FORMATTED.submission_filename(), 'w', encoding='utf-8') as f:
+                print(extract_answer_cell_source(cls), file=f)
+        mod_name = ExerciseStyle.FORMATTED.submission_filename().rsplit('.')[0]
+        cls.answer = importlib.reload(sys.modules[mod_name]) if mod_name in sys.modules else importlib.import_module(mod_name)
+    JudgeTestStage.setUpClass = setUpClass
+    @classmethod
+    def tearDownClass(cls):
+        if cls.exercise_style == ExerciseStyle.AS_IS:
+            os.remove(ExerciseStyle.FORMATTED.submission_filename())
+        cls.answer = None
+    JudgeTestStage.tearDownClass = tearDownClass
+
+
+def teststage(name=None, *, score=1, unsuccessful_score=0, required_files=None, exercise_style=ExerciseStyle.FORMATTED, exec_answer=False):
     class JudgeTestStage(JudgeTestStageBase):
         pass
     JudgeTestStage.exercise_style = exercise_style
@@ -174,6 +196,9 @@ def teststage(name=None, *, score=1, unsuccessful_score=0, required_files=None, 
     JudgeTestStage.score = score
     JudgeTestStage.unsuccessful_score = unsuccessful_score
     JudgeTestStage.required_files = list(required_files) if required_files else []
+    JudgeTestStage.answer = None
+    if exec_answer:
+        exec_answer_cell(JudgeTestStage)
     return JudgeTestStage
 
 
