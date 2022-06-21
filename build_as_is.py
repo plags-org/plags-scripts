@@ -180,6 +180,36 @@ def update_exercise_master_metadata(exercises, new_deadlines, new_drive):
         ipynb_util.save_as_notebook(ex.path, cells, metadata)
 
 
+def append_answer_cell(cells, content):
+    body = {
+        'cell_type': 'code',
+        'execution_count': None,
+        'metadata': judge_util.answer_cell_metadata(),
+        'outputs': [],
+        'source': content.strip().splitlines(True),
+    }
+    header = {
+        'cell_type': 'markdown',
+        'metadata': {'editable': False},
+        'source': ['## 解答（セルの複製削除不可）'],
+    }
+    cells.extend((header, body))
+
+
+def append_question_cell(cells):
+    body = {
+        'cell_type': 'markdown',
+        'metadata': judge_util.question_cell_metadata(),
+        'source': [],
+    }
+    header = {
+        'cell_type': 'markdown',
+        'metadata': {'editable': False},
+        'source': ['## 質問（セルの複製削除不可）'],
+    }
+    cells.extend((header, body))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('src', nargs='+', help=f'Specify source ipynb file(s).')
@@ -190,6 +220,8 @@ def main():
     parser.add_argument('-gd', '--google_drive', nargs='?', metavar='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
     parser.add_argument('-ag', '--autograde', nargs='?', const='', metavar='TEST_MOD_JSON', help='Enable auto tests, optionally taking a JSON file to specify test modules (default: test_${exercise_key}.py).')
     parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck_as_is.py'], help='Specify module files of builtin test stages (default: rawcheck_as_is.py), enabled if -ag/--autograde is also specified.')
+    parser.add_argument('-ac', '--answer_cell', nargs='?', const='',  metavar='PREFILL_CONTENT_JSON', help='Append an answer cell to each form, optionally taking a JSON file to specify prefill answer content (default: ${exercise_key}.py if exists).')
+    parser.add_argument('-qc', '--question_cell', action='store_true', help='Append a qustion cell to each form.')
     commandline_options = parser.parse_args()
 
     exercises = load_sources(commandline_options.src)
@@ -203,6 +235,16 @@ def main():
             builtin_paths = commandline_options.builtin_teststage
             mod_paths = mod_dict.get(ex.key, [os.path.join(os.path.dirname(ex.path), f'test_{ex.key}.py')])
             ex.load_test_modules(builtin_paths + mod_paths)
+
+    if commandline_options.answer_cell is not None:
+        ans_dict = {}
+        if commandline_options.answer_cell != '':
+            with open(commandline_options.answer_cell, encoding='utf-8') as f:
+                ans_dict = json.load(f)
+        for ex in exercises:
+            path = ans_dict.get(ex.key, os.path.join(os.path.dirname(ex.path), f'{ex.key}.py'))
+            with contextlib.suppress(FileNotFoundError), open(path, encoding='utf-8') as f:
+                ex.answer_cell_content = f.read()
 
     logging.info('[INFO] Cleaning up exercise master metadata...')
     for ex in exercises:
@@ -228,6 +270,10 @@ def main():
             filepath = os.path.join(commandline_options.form_dir, f'{ex.key}.ipynb')
         else:
             filepath = os.path.join(os.path.dirname(ex.path), f'form_{ex.key}.ipynb')
+        if commandline_options.answer_cell is not None:
+            append_answer_cell(cells, ex.answer_cell_content)
+        if commandline_options.question_cell:
+            append_question_cell(cells)
         ipynb_util.save_as_notebook(filepath, cells, submission_metadata)
         logging.info(f'[INFO] Generated `{filepath}`')
 
