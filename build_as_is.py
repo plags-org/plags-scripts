@@ -13,12 +13,14 @@ import json
 import hashlib
 import logging
 import contextlib
+import io
 
 import ipynb_metadata
 import ipynb_util
 import judge_util
 from judge_util import JudgeTestStageBase
 import judge_setting
+import testcase_translator
 
 
 if (sys.version_info.major, sys.version_info.minor) < (3, 8):
@@ -53,6 +55,17 @@ def interpret_test_module(path):
     path = os.path.abspath(path)
     dirpath, basename = os.path.split(path)
     modname, _ = os.path.splitext(basename)
+
+    lines = source.splitlines()
+    if lines and lines[0].startswith('#!'):
+        shebang_cmd = lines[0][len('#!'):].split()
+        cmd_name = f'{testcase_translator.__name__}.py'
+        cmd_index = max(-1, min(i for i, c in enumerate(shebang_cmd) if os.path.basename(c) == cmd_name))
+        if cmd_index >= 0:
+            stdin = sys.stdin
+            sys.stdin = io.StringIO(source)
+            source = testcase_translator.main(shebang_cmd[cmd_index+1:])
+            sys.stdin = stdin
 
     source = source.strip()
     env = {'__name__': '__main__'}
