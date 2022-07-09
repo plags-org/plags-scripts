@@ -138,8 +138,6 @@ def split_cells_into_fields(field_enum_type, raw_cells: Iterable[dict]):
     cells = []
     for cell in ipynb_util.normalized_cells(raw_cells):
         logging.debug('[TRACE] %s %s', current_key, repr(cell.source if len(cell.source) <= 64 else cell.source[:64] + ' ...'))
-        if cell.source == '':
-            continue
 
         if cell.cell_type in (CellType.CODE, CellType.RAW):
             assert current_key is not None
