@@ -120,7 +120,7 @@ PREDEFINED_TAGS = EvaluationTagMapping((
     EvaluationTag('CO', 'Correct Output',   '#7fbf7f', '#dfffdf'),
     EvaluationTag('IO', 'Incorrect Output', '#bf7f7f', '#ffdfdf'),
 
-    # template_autograde
+    # template_formatted
     EvaluationTag('ND', 'No Definition', '#333333', '#cccccc'),
     EvaluationTag('NF', 'Not Filled', '#333333', '#cccccc'),
 ))

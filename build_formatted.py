@@ -29,7 +29,7 @@ if (sys.version_info.major, sys.version_info.minor) < (3, 8):
 
 INTRODUCTION_FILE = 'intro.ipynb'
 
-CONF_DIR = 'autograde'
+CONF_DIR = 'formatted'
 
 ANSWER_CELL_FORMAT = """
 ##########################################################

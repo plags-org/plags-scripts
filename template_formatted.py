@@ -8,7 +8,7 @@ import contextlib
 
 import ipynb_metadata
 import ipynb_util
-from build_autograde import FieldKey
+from build_formatted import FieldKey
 
 if (sys.version_info.major, sys.version_info.minor) < (3, 9):
     print('[ERROR] This script requires Python >= 3.9.')
