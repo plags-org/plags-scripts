@@ -2,17 +2,15 @@
 
 import argparse
 import ast
-import itertools
-import logging
 import os
-import re
 import sys
+import contextlib
 
 import astunparse
 
 import ipynb_metadata
 import ipynb_util
-import build_autograde
+from build_autograde import FieldKey
 
 if (sys.version_info.major, sys.version_info.minor) < (3, 8):
     print('[ERROR] This script requires Python >= 3.8.')
@@ -20,46 +18,87 @@ if (sys.version_info.major, sys.version_info.minor) < (3, 8):
 
 
 def main():
-    logging.getLogger().setLevel('INFO')
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--source', nargs='*', required=True, help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
-    commandline_options = parser.parse_args()
+    parser.add_argument('DEST_IPYNB', help='Specify a destination ipynb file.')
+    parser.add_argument('-d', '--description', help='Specify a Markdown file of problem description.')
+    parser.add_argument('-p', '--prefill', help='Specify a Python module of the prefill code of answer code.')
+    parser.add_argument('-a', '--answer', help='Specify a Python module of model answer code.')
+    parser.add_argument('-i', '--instructive_assertion', help='Specify a Python module of instructive assertions.')
+    parser.add_argument('-t', '--title', help='Specify title (default: ${exercise_key})')
+    commandline_args = parser.parse_args()
 
-    separates, bundles = build_autograde.load_sources(commandline_options.source)
-    exercises = list(itertools.chain(*bundles.values(), separates))
-    for ex in exercises:
-        generate_template(ex)
+    dest_path = commandline_args.DEST_IPYNB
+    assert dest_path[-6:] == '.ipynb'
+    exercise_key = os.path.basename(dest_path)[:-6]
 
+    kwargs = {}
+    for kw in ('description', 'prefill', 'answer', 'instructive_assertion'):
+        kwargs[kw] = ''
+        with contextlib.suppress(FileNotFoundError), open(getattr(commandline_args, kw, ''), encoding='utf-8') as f:
+            kwargs[kw] = f.read().strip()
+    kwargs['title'] = exercise_key if commandline_args.title is None else commandline_args.title
 
-def generate_template(exercise):
-    FieldKey = build_autograde.FieldKey
-    CONTENT_TYPE_REGEX = r'\*\*\*CONTENT_TYPE:\s*(.+?)\*\*\*'
+    cells = generate_template_body(**kwargs)
 
-    cells, metadata = ipynb_util.load_cells(os.path.join(exercise.dirpath, exercise.key + '.ipynb'))
-    gen_cells = []
-    for i, c in enumerate(cells):
-        if c['cell_type'] == 'markdown':
-            matches = list(re.finditer(CONTENT_TYPE_REGEX, ''.join(c['source'])))
-            gen_cells.append(c)
-            if not matches:
-                continue
-            key = getattr(FieldKey, matches[0][1])
-            if key == FieldKey.SYSTEM_TESTCODE:
-                gen_cells.append(generate_precheck_test_code(exercise))
-                given_test = generate_given_test_code(exercise)
-                gen_cells.extend(given_test)
-                gen_cells.append(generate_hidden_test_code(exercise))
-            if key == FieldKey.PLAYGROUND:
-                gen_cells.append(ipynb_util.code_cell('judge_util.unittest_main()').to_ipynb())
-        else:
-            gen_cells.append(c)
+    version = ipynb_metadata.master_metadata_version({})
+    metadata = ipynb_metadata.master_metadata(exercise_key, True, version, kwargs['title'])
 
-    filepath = os.path.join(exercise.dirpath, f'template_{exercise.key}.ipynb')
-    ipynb_util.save_as_notebook(filepath, gen_cells, metadata)
+    ipynb_util.save_as_notebook(dest_path, cells, metadata)
 
 
-def generate_precheck_test_code(exercise):
-    given_ast = ast.parse(exercise.answer_cell_content.source)
+def generate_template_body(title, description, prefill, answer, instructive_assertion):
+    cells = [field_heading_cell(FieldKey.WARNING)]
+    cells.append(field_heading_cell(FieldKey.DESCRIPTION))
+    cells.append(ipynb_util.markdown_cell(f'## {title}\n\n{description}').to_ipynb())
+    cells.append(field_heading_cell(FieldKey.ANSWER_CELL_CONTENT))
+    cells.append(ipynb_util.code_cell(prefill).to_ipynb())
+    cells.append(field_heading_cell(FieldKey.EXAMPLE_ANSWERS))
+    cells.append(ipynb_util.code_cell(answer).to_ipynb())
+    cells.append(field_heading_cell(FieldKey.INSTRUCTIVE_TEST))
+    cells.append(ipynb_util.code_cell(instructive_assertion).to_ipynb())
+    cells.append(field_heading_cell(FieldKey.SYSTEM_TESTCODE))
+    cells.append(generate_precheck_test_code(prefill, answer))
+    cells.extend(generate_given_test_code(prefill, instructive_assertion))
+    cells.append(generate_hidden_test_code(prefill))
+    cells.append(field_heading_cell(FieldKey.PLAYGROUND))
+    cells.append(ipynb_util.code_cell('judge_util.unittest_main()').to_ipynb())
+    return cells
+
+
+def field_heading_cell(field_key):
+    return ipynb_util.markdown_cell(f'***CONTENT_TYPE: {field_key.name}***  \n'
+                                    + FIELD_DESCRIPTIONS[field_key]).to_ipynb()
+
+FIELD_DESCRIPTIONS = {
+    FieldKey.WARNING: '`CONTENT_TYPE:`から始まるセルは，システム用なので書き換えないで下さい．',
+    FieldKey.DESCRIPTION: '課題説明を書いてください．\n'
+                          '`## 課題タイトル` から始まるMarkdownセルで始めてください．\n'
+                          'その`課題タイトル`は，課題一覧に表示されます．\n'
+                          '複数セル可，省略不可．',
+    FieldKey.ANSWER_CELL_CONTENT: '解答セルにおける既定のコードを記述してください．\n'
+                                  '複数セル不可，空白可．',
+    FieldKey.EXAMPLE_ANSWERS: '解答例をコードセルに記述してください．\n'
+                              '最初のセルは，模範解答であることが期待されます．\n'
+                              'ここで記述されたコードは，自動評価には使われませんが，このipynb上でテストコードを実行したり，補助ipynbを生成する際に使われます．\n'
+                              '複数セル可，省略可．',
+    FieldKey.INSTRUCTIVE_TEST: '学生向けのテスト指示とテストコードを記述してください．\n'
+                               '複数セル可，省略可．',
+    FieldKey.SYSTEM_TESTCODE: '次の点に留意して自動評価に使われるテストコードを記述してください．\n'
+                              '\n'
+                              '* **1つのコードセルが1つの独立したモジュール**になります．\n'
+                              '* 1つのモジュールが1つのstageとして扱われ，セルの出現順で実行されます．\n'
+                              '* 各セルに `judge_util.teststage` が返すクラスを，**グローバルに1つ**定義してください．\n'
+                              '\n'
+                              '複数セル可，省略可．',
+    FieldKey.PLAYGROUND: 'このセルより下は，課題のビルドに影響しない自由編集領域です．\n'
+                         '\n'
+                         '次のコードは，上で定義したテストコードを，このipynb上で実行するためのものです．\n'
+                         '自動評価と同等の結果を得ます．',
+}
+
+
+def generate_precheck_test_code(prefill, answer):
+    given_ast = ast.parse(prefill)
     ellipsis_vars = []
     for node in ast.walk(given_ast):
         if isinstance(node, ast.Assign) and \
@@ -86,7 +125,7 @@ def generate_precheck_test_code(exercise):
         funcdef.name = '_predefined_' + funcdef.name
         templates.append(astunparse.unparse(funcdef).strip() + '\n')
 
-    if exercise.example_answers:
+    if answer:
         predefined_mods = set()
         for node in ast.walk(given_ast):
             if isinstance(node, ast.Import):
@@ -94,7 +133,7 @@ def generate_precheck_test_code(exercise):
             if isinstance(node, ast.ImportFrom):
                 predefined_mods.update([node.module] if node.module else [x.name for x in node.names])
         required_mods = set()
-        for node in ast.walk(ast.parse(exercise.example_answers[0].source)):
+        for node in ast.walk(ast.parse(answer)):
             if isinstance(node, ast.Import):
                 required_mods.update(x.name for x in node.names if x.name not in predefined_mods)
             if isinstance(node, ast.ImportFrom):
@@ -149,8 +188,8 @@ def code_cell(source_lines):
     return ipynb_util.code_cell('\n'.join(source_lines).strip()).to_ipynb()
 
 
-def generate_given_test_code(exercise):
-    given_ast = ast.parse('\n'.join(c.source for c in exercise.instructive_test if c.cell_type == ipynb_util.CellType.CODE))
+def generate_given_test_code(prefill, instructive_assertion):
+    given_ast = ast.parse(instructive_assertion)
     typed_asserts = []
     for node in ast.walk(given_ast):
         if isinstance(node, ast.Assert):
@@ -192,7 +231,7 @@ def generate_given_test_code(exercise):
         else:
             assert_methods.append(f'{method_map[ty]}({astunparse.unparse(test.left).strip()}, {astunparse.unparse(test.comparators[0]).strip()})')
 
-    imports = '\n'.join(astunparse.unparse(node).strip() for node in ast.walk(ast.parse(exercise.answer_cell_content.source)) if isinstance(node, (ast.Import, ast.ImportFrom)))
+    imports = '\n'.join(astunparse.unparse(node).strip() for node in ast.walk(ast.parse(prefill)) if isinstance(node, (ast.Import, ast.ImportFrom)))
 
     templates = [GIVEN_TEST_HEADER_TEMPLATE.format(f'\n{imports}\n' if imports else '')]
     for i, m in enumerate(assert_methods):
@@ -216,8 +255,8 @@ def {}(self):
 """.lstrip()
 
 
-def generate_hidden_test_code(exercise):
-    imports = '\n'.join(astunparse.unparse(node).strip() for node in ast.walk(ast.parse(exercise.answer_cell_content.source)) if isinstance(node, (ast.Import, ast.ImportFrom)))
+def generate_hidden_test_code(prefill):
+    imports = '\n'.join(astunparse.unparse(node).strip() for node in ast.walk(ast.parse(prefill)) if isinstance(node, (ast.Import, ast.ImportFrom)))
     return code_cell([HIDDEN_TEST_HEADER_TEMPLATE.format(f'\n{imports}\n' if imports else '')])
 
 HIDDEN_TEST_HEADER_TEMPLATE = """

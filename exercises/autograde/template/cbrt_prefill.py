@@ -1,0 +1,13 @@
+QUESTION_EXISTS = False # 質問がある場合は True にしてコメントに質問を記述
+
+import random
+import os, sys
+...
+
+aux = ...
+
+def function_template(x):
+    return x + ...
+
+def cbrt(x):
+    ...
