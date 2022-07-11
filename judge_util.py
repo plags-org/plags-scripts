@@ -138,13 +138,13 @@ class JudgeTestStageBase(JudgeTestCaseBase):
     score: typing.Optional[int]
     unsuccessful_score: typing.Optional[int]
 
-def teststage(name=None, *, score=1, unsuccessful_score=0, required_files=[]):
+def teststage(name=None, *, score=1, unsuccessful_score=0, required_files=None):
     class JudgeTestStage(JudgeTestStageBase):
-        required_files = ['.judge/judge_util.py']
+        pass
     JudgeTestStage.name = name
     JudgeTestStage.score = score
     JudgeTestStage.unsuccessful_score = unsuccessful_score
-    JudgeTestStage.required_files.extend(required_files)
+    JudgeTestStage.required_files = list(required_files) if required_files else []
     return JudgeTestStage
 
 

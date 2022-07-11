@@ -126,8 +126,6 @@ def generate_precheck_test_code(prefill, answer):
     return code_cell(templates)
 
 PRECHECK_HEADER_TEMPLATE = """
-import sys
-sys.path.append('.judge')
 import judge_util # モジュール全体をそのままの名前でimport
 
 # この名前は任意
@@ -215,8 +213,6 @@ def generate_given_test_code(prefill, instructive_assertion):
     return [code_cell(templates)] if assert_methods else []
 
 GIVEN_TEST_HEADER_TEMPLATE = """
-import sys
-sys.path.append('.judge')
 import judge_util # モジュール全体をそのままの名前でimport
 {}
 Given = judge_util.teststage()
@@ -235,8 +231,6 @@ def generate_hidden_test_code(prefill):
     return code_cell([HIDDEN_TEST_HEADER_TEMPLATE.format(f'\n{imports}\n' if imports else '')])
 
 HIDDEN_TEST_HEADER_TEMPLATE = """
-import sys
-sys.path.append('.judge')
 import judge_util # モジュール全体をそのままの名前でimport
 {}
 Hidden = judge_util.teststage()

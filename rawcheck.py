@@ -1,5 +1,3 @@
-import sys
-sys.path.append('.judge')
 import judge_util
 
 RawCheck = judge_util.teststage()

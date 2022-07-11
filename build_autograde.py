@@ -20,6 +20,7 @@ import ipynb_metadata
 import ipynb_util
 from ipynb_util import CellType, Cell
 import judge_setting
+import judge_util
 from judge_util import JudgeTestStageBase
 
 if (sys.version_info.major, sys.version_info.minor) < (3, 8):
@@ -88,8 +89,6 @@ class Exercise:
 
 def interpret_testcode_cells(dirpath, cells):
     dummy_source = """
-import sys
-sys.path.append('.judge')
 import judge_util # モジュール全体をそのままの名前でimport
 
 Dummy = judge_util.teststage()
@@ -221,6 +220,7 @@ def create_exercise_configuration(exercise: Exercise):
         with open(os.path.join(tests_dir, f'{stage.name}.py'), 'w', encoding='utf-8', newline='\n') as f:
             print(content, 'judge_util.unittest_main()', sep='\n', file=f)
 
+    shutil.copy2(judge_util.__file__, tests_dir)
     for path in itertools.chain(*(stage.required_files for stage, _ in exercise.test_modules)):
         dest = os.path.join(tests_dir, path)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -420,13 +420,9 @@ def main():
         ipynb_util.save_as_notebook(filepath, cells, metadata)
         logging.info(f'[INFO] Generated `{filepath}`')
 
-    import judge_util
-    libdir = '.judge'
     for dirpath in {ex.dirpath for ex in all_exercises}:
-        dst = os.path.join(dirpath, libdir)
-        os.makedirs(dst, exist_ok=True)
-        shutil.copy2(judge_util.__file__, dst)
-        logging.info(f'[INFO] Placed `{dst}/judge_util.py`')
+        shutil.copy2(judge_util.__file__, dirpath)
+        logging.info(f'[INFO] Placed `{dirpath}/{judge_util.__name__}.py`')
 
     if commandline_options.configuration:
         judge_setting.load_judge_parameters(commandline_options.configuration)

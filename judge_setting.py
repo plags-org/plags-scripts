@@ -37,7 +37,7 @@ def generate_judge_setting(exercise_key, exercise_version, test_stages):
                 'options': {'evaluation_style': stage.mode}
             },
             'time_limit': time_limit,
-            'required_files': stage.required_files,
+            'required_files': ['judge_util.py'] + stage.required_files,
         } for stage in test_stages
     }
     transitions = []
