@@ -137,8 +137,6 @@ def split_cells_into_fields(field_enum_type, raw_cells: Iterable[dict]):
     current_key = None
     cells = []
     for cell in ipynb_util.normalized_cells(raw_cells):
-        logging.debug('[TRACE] %s %s', current_key, repr(cell.source if len(cell.source) <= 64 else cell.source[:64] + ' ...'))
-
         if cell.cell_type in (CellType.CODE, CellType.RAW):
             assert current_key is not None
             cells.append(cell)
@@ -164,7 +162,6 @@ def split_cells_into_fields(field_enum_type, raw_cells: Iterable[dict]):
         field_enum = getattr(field_enum_type, field_key)
         if FieldProperty.IGNORED in field_enum.properties:
             continue
-        logging.debug(f'[TRACE] Validate field `{field_enum}`')
 
         if (FieldProperty.LIST | FieldProperty.OPTIONAL) in field_enum.properties:
             pass
@@ -373,25 +370,19 @@ def update_exercise_master_metadata_formwise(separates, bundles, new_deadlines, 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose option')
+    parser.add_argument('src', nargs='+', help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
     parser.add_argument('-d', '--deadlines', metavar='DEADLINES_JSON', help='Specify a JSON file of deadline settings.')
     parser.add_argument('-c', '--configuration', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-f', '--form_dir', help='Specify a target directory of form generation (defualt: the same as the directory of each master).')
-    parser.add_argument('-s', '--source', nargs='*', required=True, help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
     parser.add_argument('-gd', '--google_drive', metavar='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
     parser.add_argument('-ff', '--filled_form', nargs='?', const='form_filled_all.ipynb', help='Generate an all-filled form (default: form_filled_all.ipynb)')
-    parser.add_argument('-lp', '--library_placement', nargs='?', metavar='LIBDIR', const='.judge', help='Place judge_util.py for each exercise into LIBDIR (default: .judge).')
     parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck.py'], help='Specify module files of builtin test stages (default: rawcheck.py)')
     commandline_options = parser.parse_args()
-    if commandline_options.verbose:
-        logging.getLogger().setLevel('DEBUG')
-    else:
-        logging.getLogger().setLevel('INFO')
 
     Exercise.builtin_test_modules.extend(os.path.abspath(x) for x in commandline_options.builtin_teststage)
 
-    separates, bundles = load_sources(commandline_options.source)
+    separates, bundles = load_sources(commandline_options.src)
     all_exercises = list(itertools.chain(*bundles.values(), separates))
 
     logging.info('[INFO] Cleaning up exercise masters...')
@@ -429,13 +420,13 @@ def main():
         ipynb_util.save_as_notebook(filepath, cells, metadata)
         logging.info(f'[INFO] Generated `{filepath}`')
 
-    if commandline_options.library_placement:
-        import judge_util
-        for dirpath in {ex.dirpath for ex in all_exercises}:
-            dst = os.path.join(dirpath, commandline_options.library_placement)
-            os.makedirs(dst, exist_ok=True)
-            shutil.copy2(judge_util.__file__, dst)
-            logging.info(f'[INFO] Placed `{dst}/judge_util.py`')
+    import judge_util
+    libdir = '.judge'
+    for dirpath in {ex.dirpath for ex in all_exercises}:
+        dst = os.path.join(dirpath, libdir)
+        os.makedirs(dst, exist_ok=True)
+        shutil.copy2(judge_util.__file__, dst)
+        logging.info(f'[INFO] Placed `{dst}/judge_util.py`')
 
     if commandline_options.configuration:
         judge_setting.load_judge_parameters(commandline_options.configuration)
@@ -449,4 +440,5 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.getLogger().setLevel('INFO')
     main()
