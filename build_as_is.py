@@ -28,7 +28,7 @@ if (sys.version_info.major, sys.version_info.minor) < (3, 8):
     sys.exit(1)
 
 
-CONF_DIR = 'as-is'
+CONF_DIR = 'conf'
 
 
 @dataclasses.dataclass
