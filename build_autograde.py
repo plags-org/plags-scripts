@@ -88,20 +88,12 @@ class Exercise:
 
 
 def interpret_testcode_cells(dirpath, cells):
-    dummy_source = """
-import judge_util # モジュール全体をそのままの名前でimport
-
-Dummy = judge_util.teststage()
-""".lstrip()
     test_modules = []
     for path in Exercise.builtin_test_modules:
         with open(path, encoding='utf-8') as f:
             test_modules.append(interpret_testcode(os.path.dirname(path), f.read()))
-    if cells:
-        test_modules.extend(interpret_testcode(dirpath, x.source) for x in cells)
-    else:
-        test_modules.append(interpret_testcode('.', dummy_source))
-
+    test_modules.extend(interpret_testcode(dirpath, x.source) for x in cells)
+    assert test_modules, f'No stage found: {[x.source for x in cells]}'
     assert len({stage.name for stage, _ in test_modules}) == len(test_modules), f'Stage names conflict: {test_modules}'
     for stage, _ in test_modules:
         # Validation of score
