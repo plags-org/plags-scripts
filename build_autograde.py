@@ -253,7 +253,7 @@ def create_bundled_intro(dirpath):
         return [ipynb_util.markdown_cell(f'# {os.path.basename(dirpath)}')]
 
 
-def create_separate_form(exercise):
+def create_single_form(exercise):
     cells = itertools.chain(exercise.description, [exercise.answer_cell()], exercise.instructive_test)
     metadata =  ipynb_metadata.submission_metadata({exercise.key: exercise.version}, True)
     return [c.to_ipynb() for c in cells], metadata
@@ -328,8 +328,8 @@ def cleanup_exercise_master(exercise, new_version=None):
     ipynb_util.save_as_notebook(filepath, cells_new, metadata_new)
 
 
-def update_exercise_master_metadata_formwise(separates, bundles, new_deadlines, new_drive):
-    for exercise in itertools.chain(*bundles.values(), separates):
+def update_exercise_master_metadata_formwise(singles, bundles, new_deadlines, new_drive):
+    for exercise in itertools.chain(*bundles.values(), singles):
         filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
         cells, metadata = ipynb_util.load_cells(filepath)
         deadlines_cur = ipynb_metadata.master_metadata_deadlines(metadata)
@@ -362,7 +362,7 @@ def update_exercise_master_metadata_formwise(separates, bundles, new_deadlines, 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('src', nargs='+', help=f'Specify source(s) (ipynb files in separate mode and directories in bundle mode)')
+    parser.add_argument('src', nargs='+', help=f'Specify source(s) (ipynb files in single mode and directories in bundle mode)')
     parser.add_argument('-d', '--deadlines', metavar='DEADLINES_JSON', help='Specify a JSON file of deadline settings.')
     parser.add_argument('-c', '--configuration', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
@@ -374,8 +374,8 @@ def main():
 
     Exercise.builtin_test_modules.extend(os.path.abspath(x) for x in commandline_options.builtin_teststage)
 
-    separates, bundles = load_sources(commandline_options.src)
-    all_exercises = list(itertools.chain(*bundles.values(), separates))
+    singles, bundles = load_sources(commandline_options.src)
+    all_exercises = list(itertools.chain(*bundles.values(), singles))
 
     logging.info('[INFO] Cleaning up exercise masters...')
     for ex in all_exercises:
@@ -390,7 +390,7 @@ def main():
         with open(commandline_options.google_drive, encoding='utf-8') as f:
             drive = json.load(f)
     if deadlines or drive:
-        update_exercise_master_metadata_formwise(separates, bundles, deadlines, drive)
+        update_exercise_master_metadata_formwise(singles, bundles, deadlines, drive)
 
     logging.info('[INFO] Creating bundled forms...')
     for dirpath, exercises in bundles.items():
@@ -402,9 +402,9 @@ def main():
         ipynb_util.save_as_notebook(filepath, cells, metadata)
         logging.info(f'[INFO] Generated `{filepath}`')
 
-    logging.info('[INFO] Creating separate forms...')
-    for exercise in separates:
-        cells, metadata = create_separate_form(exercise)
+    logging.info('[INFO] Creating single forms...')
+    for exercise in singles:
+        cells, metadata = create_single_form(exercise)
         if commandline_options.form_dir:
             filepath = os.path.join(commandline_options.form_dir, f'{exercise.key}.ipynb')
         else:
