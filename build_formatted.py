@@ -67,7 +67,7 @@ FieldKey.PLAYGROUND.properties = FieldProperty.IGNORED
 @dataclasses.dataclass
 class Exercise:
     key: str        # Key string
-    dirpath: str    # Directory path
+    path: str       # File path
     version: str    # Version string
     title: str      # Title string
     description: Iterable[Cell]                      # DESCRIPTION field
@@ -181,7 +181,8 @@ def split_cells_into_fields(field_enum_type, raw_cells: Iterable[dict]):
 
 
 def load_exercise(dirpath, exercise_key):
-    raw_cells, metadata = ipynb_util.load_cells(os.path.join(dirpath, exercise_key + '.ipynb'))
+    path = os.path.abspath(os.path.join(dirpath, exercise_key + '.ipynb'))
+    raw_cells, metadata = ipynb_util.load_cells(path)
     version = ipynb_metadata.master_metadata_version(metadata)
 
     fields = dict(split_cells_into_fields(FieldKey, raw_cells))
@@ -193,7 +194,7 @@ def load_exercise(dirpath, exercise_key):
     test_modules = interpret_testcode_cells(dirpath, fields.pop(FieldKey.SYSTEM_TESTCODE))
 
     exercise_kwargs = {
-        'key': exercise_key, 'dirpath': dirpath, 'version': version, 'title': title, 'test_modules': test_modules,
+        'key': exercise_key, 'path': path, 'version': version, 'title': title, 'test_modules': test_modules,
         **{f.name.lower(): cs[0] if f == FieldKey.ANSWER_CELL_CONTENT else cs for f, cs in fields.items()},
     }
     return Exercise(**exercise_kwargs)
@@ -204,7 +205,7 @@ def create_exercise_configuration(exercise: Exercise):
     os.makedirs(tests_dir, exist_ok=True)
 
     cells = [x.to_ipynb() for x in itertools.chain(exercise.description, [exercise.answer_cell_content])]
-    _, metadata = ipynb_util.load_cells(os.path.join(exercise.dirpath, exercise.key + '.ipynb'), True)
+    _, metadata = ipynb_util.load_cells(exercise.path, True)
     ipynb_metadata.extend_master_metadata_for_trial(metadata, exercise.answer_cell_content.source)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
 
@@ -238,7 +239,7 @@ def create_configuration(exercises: Iterable[Exercise]):
 
 
 def create_bundled_form(dirpath, exercises):
-    assert all(ex.dirpath == dirpath for ex in exercises)
+    assert all(os.path.dirname(ex.path) == os.path.abspath(dirpath) for ex in exercises)
     body = create_bundled_intro(dirpath)
     for exercise in exercises:
         body.extend(exercise.description)
@@ -305,8 +306,7 @@ def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
 
 
 def cleanup_exercise_master(exercise, new_version=None):
-    filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
-    cells, metadata = ipynb_util.load_cells(filepath, True)
+    cells, metadata = ipynb_util.load_cells(exercise.path, True)
     cells_new = [x.to_ipynb() for x in ipynb_util.normalized_cells(cells)]
 
     if new_version is None:
@@ -330,13 +330,12 @@ def cleanup_exercise_master(exercise, new_version=None):
     deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
     drive = ipynb_metadata.master_metadata_drive(metadata)
     metadata_new = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines, drive)
-    ipynb_util.save_as_notebook(filepath, cells_new, metadata_new)
+    ipynb_util.save_as_notebook(exercise.path, cells_new, metadata_new)
 
 
 def update_exercise_master_metadata_formwise(singles, bundles, new_deadlines, new_drive):
     for exercise in itertools.chain(*bundles.values(), singles):
-        filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
-        cells, metadata = ipynb_util.load_cells(filepath)
+        cells, metadata = ipynb_util.load_cells(exercise.path)
         deadlines_cur = ipynb_metadata.master_metadata_deadlines(metadata)
         deadlines = new_deadlines.get(exercise.key, deadlines_cur)
         if deadlines != deadlines_cur:
@@ -346,13 +345,12 @@ def update_exercise_master_metadata_formwise(singles, bundles, new_deadlines, ne
         if drive != drive_cur:
             logging.info(f'[INFO] Renew Google Drive ID/URL of {exercise.key}')
         metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines, drive)
-        ipynb_util.save_as_notebook(filepath, cells, metadata)
+        ipynb_util.save_as_notebook(exercise.path, cells, metadata)
 
     for dirpath, exercises in bundles.items():
         dirname = os.path.basename(dirpath)
         for exercise in exercises:
-            filepath = os.path.join(exercise.dirpath, f'{exercise.key}.ipynb')
-            cells, metadata = ipynb_util.load_cells(filepath)
+            cells, metadata = ipynb_util.load_cells(exercise.path)
             deadlines_cur = ipynb_metadata.master_metadata_deadlines(metadata)
             deadlines = new_deadlines.get(f'{dirname}/', deadlines_cur)
             if deadlines != deadlines_cur:
@@ -362,7 +360,7 @@ def update_exercise_master_metadata_formwise(singles, bundles, new_deadlines, ne
             if drive != drive_cur:
                 logging.info(f'[INFO] Renew Google Drive ID/URL of bundle {dirname}/{exercise.key}')
             metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines, drive)
-            ipynb_util.save_as_notebook(filepath, cells, metadata)
+            ipynb_util.save_as_notebook(exercise.path, cells, metadata)
 
 
 def main():
@@ -413,11 +411,11 @@ def main():
         if commandline_options.form_dir:
             filepath = os.path.join(commandline_options.form_dir, f'{exercise.key}.ipynb')
         else:
-            filepath = os.path.join(exercise.dirpath, f'form_{exercise.key}.ipynb')
+            filepath = os.path.join(os.path.dirname(exercise.path), f'form_{exercise.key}.ipynb')
         ipynb_util.save_as_notebook(filepath, cells, metadata)
         logging.info(f'[INFO] Generated `{filepath}`')
 
-    for dirpath in {ex.dirpath for ex in all_exercises}:
+    for dirpath in {os.path.dirname(ex.path) for ex in all_exercises}:
         shutil.copy2(judge_util.__file__, dirpath)
         logging.info(f'[INFO] Placed `{dirpath}/{judge_util.__name__}.py`')
 
