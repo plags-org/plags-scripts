@@ -74,9 +74,16 @@ class Exercise:
     answer_cell_content: Cell                        # ANSWER_CELL_CONTENT field
     example_answers: Iterable[Cell]                  # EXAMPLE_ANSWERS field
     instructive_test: Iterable[Cell]                 # INSTRUCTIVE_TEST field
-    test_modules: Iterable[Tuple[JudgeTestStageBase,str]] # Iterable of modules, which are of type (Stage class, module content)
+    test_modules: Iterable[Tuple[JudgeTestStageBase,str,str]] # Iterable of modules, which are of type (Stage class, module content, directory path)
 
     builtin_test_modules = [] # List of module paths
+
+    @classmethod
+    def load_builtin_test_modules(cls, paths):
+        for path in paths:
+            path = os.path.abspath(path)
+            with open(path, encoding='utf-8') as f:
+                cls.builtin_test_modules.append(interpret_testcode(os.path.dirname(path), f.read()))
 
     def answer_cell(self):
         s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_cell_content.source)
@@ -88,14 +95,11 @@ class Exercise:
 
 
 def interpret_testcode_cells(dirpath, cells):
-    test_modules = []
-    for path in Exercise.builtin_test_modules:
-        with open(path, encoding='utf-8') as f:
-            test_modules.append(interpret_testcode(os.path.dirname(path), f.read()))
-    test_modules.extend(interpret_testcode(dirpath, x.source) for x in cells)
+    test_modules = list(Exercise.builtin_test_modules)
+    test_modules.extend(interpret_testcode(os.path.abspath(dirpath), x.source) for x in cells)
     assert test_modules, f'No stage found: {[x.source for x in cells]}'
-    assert len({stage.name for stage, _ in test_modules}) == len(test_modules), f'Stage names conflict: {test_modules}'
-    for stage, _ in test_modules:
+    assert len({stage.name for stage, _, _ in test_modules}) == len(test_modules), f'Stage names conflict: {test_modules}'
+    for stage, _, _ in test_modules:
         # Validation of score
         assert all(s is None or (isinstance(s, int) and s >= 0) for s in (getattr(stage, k) for k in ('score', 'unsuccessful_score')))
         if all(isinstance(getattr(stage, k), int) for k in ('score', 'unsuccessful_score')):
@@ -119,7 +123,7 @@ def interpret_testcode(dirpath, source):
     (name, stage), *_ = decls
     if stage.name is None:
         stage.name = name
-    return (stage, source + '\n')
+    return (stage, source + '\n', dirpath)
 
 
 def split_cells_into_fields(field_enum_type, raw_cells: Iterable[dict]):
@@ -204,19 +208,20 @@ def create_exercise_configuration(exercise: Exercise):
     ipynb_metadata.extend_master_metadata_for_trial(metadata, exercise.answer_cell_content.source)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
 
-    setting = judge_setting.generate_judge_setting(exercise.key, exercise.version, [stage for stage, _ in exercise.test_modules])
+    setting = judge_setting.generate_judge_setting(exercise.key, exercise.version, [stage for stage, _, _ in exercise.test_modules])
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
         json.dump(setting, f, indent=1, ensure_ascii=False)
 
-    for stage, content in exercise.test_modules:
+    for stage, content, _ in exercise.test_modules:
         with open(os.path.join(tests_dir, f'{stage.name}.py'), 'w', encoding='utf-8', newline='\n') as f:
             print(content, 'judge_util.unittest_main()', sep='\n', file=f)
 
     shutil.copy2(judge_util.__file__, tests_dir)
-    for path in itertools.chain(*(stage.required_files for stage, _ in exercise.test_modules)):
-        dest = os.path.join(tests_dir, path)
-        os.makedirs(os.path.dirname(dest), exist_ok=True)
-        shutil.copyfile(os.path.join(exercise.dirpath, path), dest)
+    for stage, _, dirpath in exercise.test_modules:
+        for suffix in stage.required_files:
+            dest = os.path.join(tests_dir, suffix)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            shutil.copyfile(os.path.join(dirpath, suffix), dest)
 
 def create_configuration(exercises: Iterable[Exercise]):
     shutil.rmtree(CONF_DIR, ignore_errors=True)
@@ -372,7 +377,7 @@ def main():
     parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck.py'], help='Specify module files of builtin test stages (default: rawcheck.py)')
     commandline_options = parser.parse_args()
 
-    Exercise.builtin_test_modules.extend(os.path.abspath(x) for x in commandline_options.builtin_teststage)
+    Exercise.load_builtin_test_modules(commandline_options.builtin_teststage)
 
     singles, bundles = load_sources(commandline_options.src)
     all_exercises = list(itertools.chain(*bundles.values(), singles))
