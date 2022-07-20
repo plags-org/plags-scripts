@@ -62,8 +62,12 @@ def main(args=None):
     testcases = interpret_testcases(src)
     output = [HEADER_TEMPLATE]
     if commandline_args.check_if_filled:
-        for target in testcases:
-            output.append(FILLED_CHECK_TEMPLATE.format(name=target))
+        for target, cases  in testcases.items():
+            if all(lhs_args is None for lhs_args, _, _ in cases):
+                output.append(VAR_FILLED_CHECK_TEMPLATE.format(name=target))
+            else:
+                assert all(lhs_args is not None for lhs_args, _, _ in cases)
+                output.append(FILLED_CHECK_TEMPLATE.format(name=target))
     output.extend(generate_methods(testcases, commandline_args.show_arguments))
 
     return '\n'.join(output)
@@ -117,6 +121,13 @@ def {name}_filled(self):
     self.assertFalse(judge_util.is_ellipsis_body(self.answer.{name}))
 """.lstrip()
 
+VAR_FILLED_CHECK_TEMPLATE = """
+@judge_util.check_method(Stage, 'NF')
+def {name}_filled(self):
+    judge_util.set_error_tag(self, 'ND', AttributeError)
+    self.assertNotEqual(self.answer.{name}, ...)
+""".lstrip()
+
 
 def generate_methods(testcases, show_arguments):
     method_map = {
@@ -141,11 +152,15 @@ def generate_methods(testcases, show_arguments):
             if rhs is None:
                 method_name = method_name.get((op,None), method_name)
             suffix = ('{:0' + str(len(str(len(cases)))) + '}').format(i)
-            if show_arguments:
-                decl = f"{name} = judge_util.argument_logger(self, self.answer.{name})"
+            if lhs_args is None:
+                decl = ''
+                lhs = f'self.answer.{name}'
             else:
-                decl = f"{name} = self.answer.{name}"
-            lhs = f"{name}({', '.join(map(repr, lhs_args))})"
+                if show_arguments:
+                    decl = f'{name} = judge_util.argument_logger(self, self.answer.{name})'
+                else:
+                    decl = f'{name} = self.answer.{name}'
+                lhs = f"{name}({', '.join(map(repr, lhs_args))})"
             output.append(TEST_TEMPLATE.format(f'{name}_test{suffix}', decl, method_name, lhs, repr(rhs)))
 
     return output
