@@ -68,7 +68,6 @@ FieldKey.PLAYGROUND.properties = FieldProperty.IGNORED
 class Exercise:
     key: str        # Key string
     path: str       # File path
-    version: str    # Version string
     title: str      # Title string
     description: Iterable[Cell]                      # DESCRIPTION field
     answer_cell_content: Cell                        # ANSWER_CELL_CONTENT field
@@ -182,9 +181,7 @@ def split_cells_into_fields(field_enum_type, raw_cells: Iterable[dict]):
 
 def load_exercise(dirpath, exercise_key):
     path = os.path.abspath(os.path.join(dirpath, exercise_key + '.ipynb'))
-    raw_cells, metadata = ipynb_util.load_cells(path)
-    version = ipynb_metadata.master_metadata_version(metadata)
-
+    raw_cells, _ = ipynb_util.load_cells(path)
     fields = dict(split_cells_into_fields(FieldKey, raw_cells))
 
     heading_regex = r'#+\s+(.*)'
@@ -194,7 +191,7 @@ def load_exercise(dirpath, exercise_key):
     test_modules = interpret_testcode_cells(dirpath, fields.pop(FieldKey.SYSTEM_TESTCODE))
 
     exercise_kwargs = {
-        'key': exercise_key, 'path': path, 'version': version, 'title': title, 'test_modules': test_modules,
+        'key': exercise_key, 'path': path, 'title': title, 'test_modules': test_modules,
         **{f.name.lower(): cs[0] if f == FieldKey.ANSWER_CELL_CONTENT else cs for f, cs in fields.items()},
     }
     return Exercise(**exercise_kwargs)
@@ -209,7 +206,8 @@ def create_exercise_configuration(exercise: Exercise):
     ipynb_metadata.extend_master_metadata_for_trial(metadata, exercise.answer_cell_content.source)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
 
-    setting = judge_setting.generate_judge_setting(exercise.key, exercise.version, [stage for stage, _, _ in exercise.test_modules])
+    version = ipynb_metadata.master_metadata_version(metadata)
+    setting = judge_setting.generate_judge_setting(exercise.key, version, [stage for stage, _, _ in exercise.test_modules])
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
         json.dump(setting, f, indent=1, ensure_ascii=False)
 
@@ -245,7 +243,7 @@ def create_bundled_form(dirpath, exercises):
         body.extend(exercise.description)
         body.append(exercise.answer_cell())
         body.extend(exercise.instructive_test)
-    key_to_ver = {ex.key: ex.version for ex in exercises}
+    key_to_ver = {ex.key: ipynb_metadata.master_metadata_version(filepath=ex.path) for ex in exercises}
     metadata = ipynb_metadata.submission_metadata(key_to_ver, True)
     return [c.to_ipynb() for c in body], metadata
 
@@ -260,13 +258,15 @@ def create_bundled_intro(dirpath):
 
 
 def create_single_form(exercise):
+    version = ipynb_metadata.master_metadata_version(filepath=exercise.path)
     cells = itertools.chain(exercise.description, [exercise.answer_cell()], exercise.instructive_test)
-    metadata =  ipynb_metadata.submission_metadata({exercise.key: exercise.version}, True)
+    metadata =  ipynb_metadata.submission_metadata({exercise.key: version}, True)
     return [c.to_ipynb() for c in cells], metadata
 
 
 def create_filled_form(exercises):
-    metadata =  ipynb_metadata.submission_metadata({ex.key: ex.version for ex in exercises}, True)
+    key_to_ver = {ex.key: ipynb_metadata.master_metadata_version(filepath=ex.path) for ex in exercises}
+    metadata =  ipynb_metadata.submission_metadata(key_to_ver, True)
     return [ex.answer_cell_filled().to_ipynb() for ex in exercises], metadata
 
 
@@ -308,9 +308,10 @@ def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
 def cleanup_exercise_master(exercise, new_version=None):
     cells, metadata = ipynb_util.load_cells(exercise.path, True)
     cells_new = [x.to_ipynb() for x in ipynb_util.normalized_cells(cells)]
+    version = ipynb_metadata.master_metadata_version(metadata)
 
     if new_version is None:
-        new_version = exercise.version
+        new_version = version
     elif new_version == hashlib.sha1:
         exercise_definition = {
             'description': [x.to_ipynb() for x in exercise.description],
@@ -323,13 +324,12 @@ def cleanup_exercise_master(exercise, new_version=None):
     else:
         assert isinstance(new_version, str)
 
-    if new_version != exercise.version:
+    if new_version != version:
         logging.info(f'[INFO] Renew version of {exercise.key}')
-        exercise.version = new_version
 
     deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
     drive = ipynb_metadata.master_metadata_drive(metadata)
-    metadata_new = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines, drive)
+    metadata_new = ipynb_metadata.master_metadata(exercise.key, True, new_version, exercise.title, deadlines, drive)
     ipynb_util.save_as_notebook(exercise.path, cells_new, metadata_new)
 
 
@@ -344,7 +344,8 @@ def update_exercise_master_metadata_formwise(singles, bundles, new_deadlines, ne
         drive = new_drive.get(exercise.key, drive_cur)
         if drive != drive_cur:
             logging.info(f'[INFO] Renew Google Drive ID/URL of {exercise.key}')
-        metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines, drive)
+        version = ipynb_metadata.master_metadata_version(metadata)
+        metadata = ipynb_metadata.master_metadata(exercise.key, True, version, exercise.title, deadlines, drive)
         ipynb_util.save_as_notebook(exercise.path, cells, metadata)
 
     for dirpath, exercises in bundles.items():
@@ -359,7 +360,8 @@ def update_exercise_master_metadata_formwise(singles, bundles, new_deadlines, ne
             drive = new_drive.get(f'{dirname}/', drive_cur)
             if drive != drive_cur:
                 logging.info(f'[INFO] Renew Google Drive ID/URL of bundle {dirname}/{exercise.key}')
-            metadata = ipynb_metadata.master_metadata(exercise.key, True, exercise.version, exercise.title, deadlines, drive)
+            version = ipynb_metadata.master_metadata_version(metadata)
+            metadata = ipynb_metadata.master_metadata(exercise.key, True, version, exercise.title, deadlines, drive)
             ipynb_util.save_as_notebook(exercise.path, cells, metadata)
 
 

@@ -35,7 +35,13 @@ def master_metadata(exercise_key: str, autograde: bool, version: str, title=None
         **COMMON_METADATA,
     }
 
-def master_metadata_version(metadata):
+def master_metadata_version(metadata=None, *, filepath=None):
+    import ipynb_util
+    assert metadata is None or filepath is None
+    if metadata is None:
+        metadata = {}
+    if filepath is not None:
+        _, metadata = ipynb_util.load_cells(filepath)
     return metadata.get('judge_master', {}).get('version', '')
 
 def master_metadata_deadlines(metadata):
