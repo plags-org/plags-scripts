@@ -70,7 +70,7 @@ class Exercise:
     path: str       # File path
     title: str      # Title string
     description: Iterable[Cell]                      # DESCRIPTION field
-    answer_cell_content: Cell                        # ANSWER_CELL_CONTENT field
+    answer_cell_content: str                         # ANSWER_CELL_CONTENT field
     example_answers: Iterable[Cell]                  # EXAMPLE_ANSWERS field
     instructive_test: Iterable[Cell]                 # INSTRUCTIVE_TEST field
     test_modules: Iterable[Tuple[JudgeTestStageBase,str,str]] # Iterable of modules, which are of type (Stage class, module content, directory path)
@@ -85,11 +85,11 @@ class Exercise:
                 cls.builtin_test_modules.append(interpret_testcode(os.path.dirname(path), f.read()))
 
     def answer_cell(self):
-        s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_cell_content.source)
+        s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_cell_content)
         return ipynb_util.code_cell(s)
 
     def answer_cell_filled(self):
-        s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.example_answers[0].source if self.example_answers else self.answer_cell_content.source)
+        s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.example_answers[0].source if self.example_answers else self.answer_cell_content)
         return ipynb_util.code_cell(s)
 
 
@@ -189,10 +189,10 @@ def load_exercise(dirpath, exercise_key):
     title = re.fullmatch(heading_regex, description_first_line).groups()[0]
 
     test_modules = interpret_testcode_cells(dirpath, fields.pop(FieldKey.SYSTEM_TESTCODE))
-
+    answer_cell_content = fields.pop(FieldKey.ANSWER_CELL_CONTENT)[0].source
     exercise_kwargs = {
-        'key': exercise_key, 'path': path, 'title': title, 'test_modules': test_modules,
-        **{f.name.lower(): cs[0] if f == FieldKey.ANSWER_CELL_CONTENT else cs for f, cs in fields.items()},
+        'key': exercise_key, 'path': path, 'title': title, 'test_modules': test_modules, 'answer_cell_content': answer_cell_content,
+        **{f.name.lower(): cs for f, cs in fields.items()},
     }
     return Exercise(**exercise_kwargs)
 
@@ -201,9 +201,9 @@ def create_exercise_configuration(exercise: Exercise):
     tests_dir = os.path.join(CONF_DIR, exercise.key)
     os.makedirs(tests_dir, exist_ok=True)
 
-    cells = [x.to_ipynb() for x in itertools.chain(exercise.description, [exercise.answer_cell_content])]
+    cells = [x.to_ipynb() for x in itertools.chain(exercise.description, [ipynb_util.code_cell(exercise.answer_cell_content)])]
     _, metadata = ipynb_util.load_cells(exercise.path, True)
-    ipynb_metadata.extend_master_metadata_for_trial(metadata, exercise.answer_cell_content.source)
+    ipynb_metadata.extend_master_metadata_for_trial(metadata, exercise.answer_cell_content)
     ipynb_util.save_as_notebook(os.path.join(CONF_DIR, exercise.key + '.ipynb'), cells, metadata)
 
     version = ipynb_metadata.master_metadata_version(metadata)
