@@ -4,6 +4,9 @@ import argparse
 import ast
 import os
 import sys
+import types
+
+import testcase_util
 
 
 SRC_SPEC = """
@@ -14,6 +17,7 @@ SRC_SPEC = """
 * Source code in Python.
 * Define a list of test cases as a global variable of the same name as a function to be tested.
 * Global variables starting with `_` are not interpreted as test-case lists.
+* Global variables bounded to modules and objects defined in `testcase_util` are not interpreted as test-case lists.
 * A test case is a triple of an argument tuple used to test the function, an expected return value, and a comparison operator of `str`.
 * Comparison operators in test cases are omittable; where omitted, `'=='` is considered to be specified.
 * Arguments and return values in test cases are limited to values `x` such that `eval(repr(x)) == x` holds.
@@ -84,7 +88,9 @@ def interpret_testcases(source):
     exec(source, env)
     sys.path = path
     os.chdir(cwd)
-    env = {name: val for name, val in env.items() if not name.startswith('_')}
+    env = {name: val for name, val in env.items() if not name.startswith('_')
+                                                 and not getattr(val, '__module__', '') == testcase_util.__name__
+                                                 and not isinstance(val, types.ModuleType)}
 
     assert all(isinstance(cases, list) for cases in env.values())
 
@@ -97,10 +103,14 @@ def interpret_testcases(source):
                     cmp_op = case[2]
                 else:
                     assert False
-                exp_ast = ast.parse(f'_ {cmp_op} _').body[0].value
-                assert isinstance(exp_ast, ast.Compare)
-                op, *_ = exp_ast.ops
-                cases[i] = (*case[:2], type(op))
+                if isinstance(cmp_op, str):
+                    exp_ast = ast.parse(f'_ {cmp_op} _').body[0].value
+                    assert isinstance(exp_ast, ast.Compare)
+                    op, *_ = exp_ast.ops
+                else:
+                    assert cmp_op.__module__ == testcase_util.__name__
+                    op = cmp_op
+                cases[i] = (*case[:2], op)
             else:
                 assert case.__qualname__ == '<lambda>'
                 raise NotImplemented
@@ -143,12 +153,13 @@ def generate_methods(testcases, show_arguments):
         ast.LtE: 'assertLessEqual',
         ast.Gt: 'assertGreater',
         ast.GtE: 'assertGreaterEqual',
+        testcase_util.approx: 'assertAlmostEqual',
     }
 
     output = []
     for name, cases in testcases.items():
         for i, (lhs_args, rhs, op) in enumerate(cases):
-            method_name = method_map[op]
+            method_name = method_map[type(op)]
             if rhs is None:
                 method_name = method_name.get((op,None), method_name)
             suffix = ('{:0' + str(len(str(len(cases)))) + '}').format(i)
@@ -161,7 +172,10 @@ def generate_methods(testcases, show_arguments):
                 else:
                     decl = f'{name} = self.answer.{name}'
                 lhs = f"{name}({', '.join(map(repr, lhs_args))})"
-            output.append(TEST_TEMPLATE.format(f'{name}_test{suffix}', decl, method_name, lhs, repr(rhs)))
+            option = ''
+            if isinstance(op, testcase_util.approx):
+                option = ''.join(f', {key}={repr(val)}' for key, val in vars(op).items())
+            output.append(TEST_TEMPLATE.format(f'{name}_test{suffix}', decl, method_name, lhs, repr(rhs), option))
 
     return output
 
@@ -170,7 +184,7 @@ TEST_TEMPLATE = """
 @judge_util.test_method(Stage)
 def {}(self):
     {}
-    self.{}({}, {})
+    self.{}({}, {}{})
 """.lstrip()
 
 
