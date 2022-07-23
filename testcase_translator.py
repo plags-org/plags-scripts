@@ -162,15 +162,22 @@ def generate_methods(testcases, show_arguments):
             method_name = method_map[type(op)]
             if rhs is None:
                 method_name = method_name.get((op,None), method_name)
+            if isinstance(rhs, (testcase_util.printed, testcase_util.stdout)):
+                wrapper = {
+                    testcase_util.printed: 'judge_util.print_return',
+                    testcase_util.stdout: 'judge_util.stdout_return',
+                }[type(rhs)]
+                decl = f'{name} = {wrapper}(self.answer.{name})'
+                rhs = rhs.output
+            else:
+                decl = f'{name} = self.answer.{name}'
             suffix = ('{:0' + str(len(str(len(cases)))) + '}').format(i)
             if lhs_args is None:
                 decl = ''
                 lhs = f'self.answer.{name}'
             else:
                 if show_arguments:
-                    decl = f'{name} = judge_util.argument_logger(self, self.answer.{name})'
-                else:
-                    decl = f'{name} = self.answer.{name}'
+                    decl += f'\n    {name} = judge_util.argument_logger(self, {name})'
                 lhs = f"{name}({', '.join(map(repr, lhs_args))})"
             option = ''
             if isinstance(op, testcase_util.approx):

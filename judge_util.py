@@ -13,6 +13,8 @@ import typing
 import dataclasses
 import types
 import importlib
+import contextlib
+import functools
 
 
 class ExerciseStyle(enum.Enum):
@@ -352,6 +354,68 @@ _message_log = {}
 
 def set_unsuccessful_message(testcase, msg):
     _message_log[testcase] = msg
+
+
+def print_return(func):
+    import io, sys, builtins
+    mod = sys.modules[func.__module__]
+    out = io.StringIO()
+
+    def print(*args, sep=' ', end='\n', file=sys.stdout, flush=False):
+        builtins.print(*args, sep=sep, end=end, file=out, flush=flush)
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with global_hijack(mod, print):
+            func(*args, **kwargs)
+        return out.getvalue()
+
+    return wrapper
+
+
+@contextlib.contextmanager
+def global_hijack(module, hijacker, name=None):
+    if name is None:
+        name = hijacker.__name__
+    if hasattr(module, name):
+        hijackee = getattr(module, name)
+        setattr(module, name, hijacker)
+        try:
+            yield
+        finally:
+            setattr(module, name, hijackee)
+    else:
+        setattr(module, name, hijacker)
+        try:
+            yield
+        finally:
+            delattr(module, name)
+
+
+def stdout_return(func):
+    import io
+    out = io.StringIO()
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with stdio_hijack(None, out):
+            func(*args, **kwargs)
+        return out.getvalue()
+
+    return wrapper
+
+
+@contextlib.contextmanager
+def stdio_hijack(stdin, stdout, stderr=None):
+    import sys
+    ioe_orig = (sys.stdin, sys.stdout, sys.stderr)
+    try:
+        sys.stdin = sys.stdin if stdin is None else stdin
+        sys.stdout = sys.stdout if stdout is None else stdout
+        sys.stderr = sys.stderr if stderr is None else stderr
+        yield
+    finally:
+        sys.stdin, sys.stdout, sys.stderr = ioe_orig
 
 
 class ResultStatus(enum.Enum):
