@@ -174,14 +174,19 @@ def exec_answer_cell(JudgeTestStage):
             with open(ExerciseStyle.FORMATTED.submission_filename(), 'w', encoding='utf-8') as f:
                 print(extract_answer_cell_source(cls), file=f)
         mod_name = ExerciseStyle.FORMATTED.submission_filename().rsplit('.')[0]
-        if mod_name in sys.modules:
-            mod = sys.modules[mod_name]
-            for name in dir(mod):
-                if not name.startswith('__'):
-                    delattr(mod, name)
-            cls.answer = importlib.reload(mod)
-        else:
-            cls.answer = importlib.import_module(mod_name)
+        try:
+            if mod_name in sys.modules:
+                mod = sys.modules[mod_name]
+                for name in dir(mod):
+                    if not name.startswith('__'):
+                        delattr(mod, name)
+                cls.answer = importlib.reload(mod)
+            else:
+                cls.answer = importlib.import_module(mod_name)
+        except Exception:
+            cls.tearDownClass()
+            raise
+
     JudgeTestStage.setUpClass = setUpClass
     @classmethod
     def tearDownClass(cls):
@@ -489,14 +494,14 @@ def render_details_html(rows):
     return '\n'.join(unsuccessful_detail_html(x) for x in rows if x.status != ResultStatus.PASS)
 
 
-def unittest_main(*, on_ipynb='IPython' in sys.modules):
+def unittest_main(*, on_ipynb='IPython' in sys.modules, module='__main__'):
     global _message_log
     _message_log = {}
     stream = io.StringIO()
-    main = unittest.main(argv=[''], testRunner=JudgeTestRunner(stream, verbosity=2), exit=False)
+    main = unittest.main(module=module, argv=[''], testRunner=JudgeTestRunner(stream, verbosity=2), exit=False)
     if on_ipynb:
-        caller_globals = inspect.currentframe().f_back.f_globals
-        stage_name = {v: n if v.name is None else v.name for n, v in caller_globals.items() if isinstance(v, type) and issubclass(v, JudgeTestStageBase)}
+        test_env = vars(sys.modules[module] if isinstance(module, str) else module)
+        stage_name = {v: n if v.name is None else v.name for n, v in test_env.items() if isinstance(v, type) and issubclass(v, JudgeTestStageBase)}
         import IPython.display
         return IPython.display.HTML(render_evaluation_html(main.result.to_table(stage_name)))
     else:

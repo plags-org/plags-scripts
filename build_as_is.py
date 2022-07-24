@@ -223,6 +223,71 @@ def append_question_cell(cells):
     cells.extend((header, body))
 
 
+def append_test_results(cells, exercise):
+    results = run_test(exercise)
+    body = [{
+        'cell_type': 'code',
+        'execution_count': None,
+        'metadata': {},
+        'outputs': [
+            {
+                'data': {
+                    'text/html': html.data.splitlines(True),
+                    'text/plain': str(html).splitlines(True),
+                },
+                'execution_count': None,
+                'metadata': {},
+                'output_type': 'execute_result',
+            }
+        ],
+        'source': source.splitlines(True),
+    } for html, source in results]
+    header = {
+        'cell_type': 'markdown',
+        'metadata': {},
+        'source': ['## テストコードとその実行結果'],
+    }
+    cells.append(header)
+    cells.extend(body)
+
+
+def run_test(exercise):
+    path = sys.path
+    cwd = os.getcwd()
+
+    results = []
+    test_mod_name = '_test_mod'
+    for stage, content, dirpath in exercise.test_modules:
+        os.chdir(dirpath)
+        sys.path = [os.getcwd()] + path
+
+        with open(f'{test_mod_name}.py', 'w', encoding='utf-8') as f:
+            print(content, file=f)
+        import importlib
+        if test_mod_name in sys.modules:
+            test_mod = sys.modules[test_mod_name]
+            for name in dir(test_mod):
+                if not name.startswith('__'):
+                    delattr(test_mod, name)
+            test_mod = importlib.reload(test_mod)
+        else:
+            test_mod = importlib.import_module(test_mod_name)
+
+        cells = []
+        append_answer_cell(cells, exercise.answer_cell_content)
+        ipynb_util.save_as_notebook(judge_util.ExerciseStyle.AS_IS.submission_filename(), cells, {})
+
+        html = judge_util.unittest_main(on_ipynb=True, module=test_mod)
+        results.append((html, content))
+
+        os.remove(judge_util.ExerciseStyle.AS_IS.submission_filename())
+        os.remove(f'{test_mod_name}.py')
+
+    os.chdir(cwd)
+    sys.path = path
+    return results
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('src', nargs='+', help=f'Specify source ipynb file(s).')
@@ -235,6 +300,7 @@ def main():
     parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck_as_is.py'], help='Specify module files of builtin test stages (default: rawcheck_as_is.py), enabled if -ag/--autograde is also specified.')
     parser.add_argument('-ac', '--answer_cell', nargs='?', const='',  metavar='PREFILL_CONTENT_JSON', help='Append an answer cell to each form, optionally taking a JSON file to specify prefill answer content (default: ${exercise_key}.py if exists).')
     parser.add_argument('-qc', '--question_cell', action='store_true', help='Append a qustion cell to each form.')
+    parser.add_argument('-t', '--run_test', nargs='?', const='', metavar='RESULT_DIR', help='Run tests for all the exercises, optionally taking a target directory of result generation (defualt: the same as the directory of each master).')
     commandline_options = parser.parse_args()
 
     exercises = load_sources(commandline_options.src)
@@ -289,6 +355,21 @@ def main():
             append_question_cell(cells)
         ipynb_util.save_as_notebook(filepath, cells, submission_metadata)
         logging.info(f'[INFO] Generated `{filepath}`')
+
+    if commandline_options.run_test is not None:
+        logging.info('[INFO] Creating test results...')
+        for ex in exercises:
+            cells, metadata = ipynb_util.load_cells(ex.path, True)
+            version = ipynb_metadata.master_metadata_version(metadata)
+            submission_metadata =  ipynb_metadata.submission_metadata({ex.key: version}, False)
+            if commandline_options.run_test:
+                filepath = os.path.join(commandline_options.run_test, f'{ex.key}.ipynb')
+            else:
+                filepath = os.path.join(ex.dirpath, f'result_{ex.key}.ipynb')
+            append_answer_cell(cells, ex.answer_cell_content)
+            append_test_results(cells, ex)
+            ipynb_util.save_as_notebook(filepath, cells, submission_metadata)
+            logging.info(f'[INFO] Generated `{filepath}`')
 
     if commandline_options.configuration is not None:
         if commandline_options.configuration:
