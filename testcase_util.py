@@ -16,3 +16,13 @@ class printed:
 class stdout:
     def __init__(self, obj):
         self.output = str(obj)
+
+
+class call_count:
+    def __init__(self, count):
+        self.count = count
+
+
+class recursively_called(call_count):
+    def __init__(self):
+        super().__init__(1)

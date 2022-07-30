@@ -132,9 +132,10 @@ PREDEFINED_TAGS = EvaluationTagMapping((
     EvaluationTag('CO', 'Correct Output',   '#7fbf7f', '#dfffdf'),
     EvaluationTag('IO', 'Incorrect Output', '#bf7f7f', '#ffdfdf'),
 
-    # template_formatted
+    # template_formatted, testcase_translator
     EvaluationTag('ND', 'No Definition', '#333333', '#cccccc'),
     EvaluationTag('NF', 'Not Filled', '#333333', '#cccccc'),
+    EvaluationTag('NR', 'Non-Recursive', '#aa0000', '#ffccd0'),
 ))
 
 
@@ -373,17 +374,42 @@ def print_return(func):
     return wrapper
 
 
+def call_count_return(func):
+    import sys
+    mod = sys.modules[func.__module__]
+    count = 0
+    rename = f'_{func.__name__}'
+
+    def call_count_wrapper(*args, **kwargs):
+        nonlocal count
+        count += 1
+        return getattr(mod, rename)(*args, **kwargs)
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with global_hijack(mod, call_count_wrapper, func.__name__, rename):
+            call_count_wrapper(*args, **kwargs)
+        return count
+
+    return wrapper
+
+
 @contextlib.contextmanager
-def global_hijack(module, hijacker, name=None):
+def global_hijack(module, hijacker, name=None, rename=None):
     if name is None:
         name = hijacker.__name__
     if hasattr(module, name):
         hijackee = getattr(module, name)
         setattr(module, name, hijacker)
+        if rename is not None:
+            assert not hasattr(module, rename)
+            setattr(module, rename, hijackee)
         try:
             yield
         finally:
             setattr(module, name, hijackee)
+            if rename is not None:
+                delattr(module, rename)
     else:
         setattr(module, name, hijacker)
         try:

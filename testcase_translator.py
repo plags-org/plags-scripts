@@ -158,40 +158,58 @@ def generate_methods(testcases, show_arguments):
 
     output = []
     for name, cases in testcases.items():
+        suffix_format = '_test{:0' + str(len(str(len(cases)))) + '}'
         for i, (lhs_args, rhs, op) in enumerate(cases):
             method_name = method_map[type(op)]
             if rhs is None:
                 method_name = method_name.get((op,None), method_name)
+            decorator_name = {
+                testcase_util.printed: 'test_method',
+                testcase_util.stdout: 'test_method',
+                testcase_util.call_count: 'check_method',
+                testcase_util.recursively_called: 'check_method',
+            }.get(type(rhs), 'test_method')
+
+            decls = [f'{name} = self.answer.{name}']
+
             if isinstance(rhs, (testcase_util.printed, testcase_util.stdout)):
                 wrapper = {
                     testcase_util.printed: 'judge_util.print_return',
                     testcase_util.stdout: 'judge_util.stdout_return',
                 }[type(rhs)]
-                decl = f'{name} = {wrapper}(self.answer.{name})'
+                decls.append(f'{name} = {wrapper}({name})')
                 rhs = rhs.output
-            else:
-                decl = f'{name} = self.answer.{name}'
-            suffix = ('{:0' + str(len(str(len(cases)))) + '}').format(i)
+            elif isinstance(rhs, testcase_util.call_count):
+                decls.append(f'{name} = judge_util.call_count_return({name})')
+                if isinstance(rhs, testcase_util.recursively_called):
+                    assert isinstance(op, ast.Eq)
+                    method_name = method_map[ast.Gt]
+                    decls.append("judge_util.set_fail_tag(self, 'NR')")
+                rhs = rhs.count
+
             if lhs_args is None:
-                decl = ''
+                decls = []
                 lhs = f'self.answer.{name}'
             else:
                 if show_arguments:
-                    decl += f'\n    {name} = judge_util.argument_logger(self, {name})'
+                    decls.append(f'{name} = judge_util.argument_logger(self, {name})')
                 lhs = f"{name}({', '.join(map(repr, lhs_args))})"
+
             option = ''
             if isinstance(op, testcase_util.approx):
-                option = ''.join(f', {key}={repr(val)}' for key, val in vars(op).items())
-            output.append(TEST_TEMPLATE.format(f'{name}_test{suffix}', decl, method_name, lhs, repr(rhs), option))
+                option = ''.join(f', {key}={val!r}' for key, val in vars(op).items())
+
+            assertion = f'self.{method_name}({lhs}, {rhs!r}{option})'
+            body = decls + [assertion]
+            output.append(TEST_TEMPLATE.format(decorator_name, f'{name}{suffix_format.format(i)}', '\n    '.join(body)))
 
     return output
 
 
 TEST_TEMPLATE = """
-@judge_util.test_method(Stage)
+@judge_util.{}(Stage)
 def {}(self):
     {}
-    self.{}({}, {}{})
 """.lstrip()
 
 
