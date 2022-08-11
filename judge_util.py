@@ -131,6 +131,7 @@ PREDEFINED_TAGS = EvaluationTagMapping((
     # judge_util.test_method
     EvaluationTag('CO', 'Correct Output',   '#7fbf7f', '#dfffdf'),
     EvaluationTag('IO', 'Incorrect Output', '#bf7f7f', '#ffdfdf'),
+    EvaluationTag('RLE', 'Recursion Limit Exceeded', '#aa0000', '#ffccd0'),
 
     # template_formatted, testcase_translator
     EvaluationTag('ND', 'No Definition', '#333333', '#cccccc'),
@@ -322,6 +323,7 @@ def test_method(testcase_cls):
         def wrapper_method(self):
             set_ok_tag(self, 'CO')
             set_fail_tag(self, 'IO')
+            set_error_tag(self, 'RLE', RecursionError)
             func(self)
         name = _encode_method_name(func.__name__)
         setattr(testcase_cls, name, wrapper_method)
