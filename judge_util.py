@@ -123,7 +123,6 @@ PREDEFINED_TAGS = EvaluationTagMapping((
     # template_autograde
     EvaluationTag('ND', 'No Definition', '#333333', '#cccccc'),
     EvaluationTag('NF', 'Not Filled', '#333333', '#cccccc'),
-    EvaluationTag('IM', 'Import Missing', '#ffbf3f', '#ffdfbf'),
 ))
 
 

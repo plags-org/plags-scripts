@@ -125,21 +125,6 @@ def generate_precheck_test_code(prefill, answer):
         funcdef.name = '_predefined_' + funcdef.name
         templates.append(astunparse.unparse(funcdef).strip() + '\n')
 
-    if answer:
-        predefined_mods = set()
-        for node in ast.walk(given_ast):
-            if isinstance(node, ast.Import):
-                predefined_mods.update(x.name for x in node.names)
-            if isinstance(node, ast.ImportFrom):
-                predefined_mods.update([node.module] if node.module else [x.name for x in node.names])
-        required_mods = set()
-        for node in ast.walk(ast.parse(answer)):
-            if isinstance(node, ast.Import):
-                required_mods.update(x.name for x in node.names if x.name not in predefined_mods)
-            if isinstance(node, ast.ImportFrom):
-                required_mods.update(({node.module} if node.module else {x.name for x in node.names}) - predefined_mods)
-        templates.extend(PRECHECK_IMPORT_CHECK_TEMPLATE.format(x.replace('.', '_'),x) for x in required_mods)
-
     return code_cell(templates)
 
 PRECHECK_HEADER_TEMPLATE = """
@@ -173,14 +158,6 @@ PRECHECK_CONGRUENT_FUNC_CHECK_TEMPLATE = """
 def {}_filled(self):
     judge_util.set_error_tag(self, 'ND', NameError) # NameErrorが生じたらNDタグをつける
     self.assertFalse(judge_util.congruent({}, _predefined_{})) # 既定のコードとASTレベルで合同なら失敗
-""".lstrip()
-
-PRECHECK_IMPORT_CHECK_TEMPLATE = """
-# 検査対象を実行しない静的検査
-@judge_util.check_method(Precheck, 'IM') # 失敗時に付くタグ（オプショナル）
-def {}_imported(self):                   # 成功・エラーの時にはタグは付かない
-    import sys
-    self.assertIn('{}', sys.modules) # importされていなかったら失敗
 """.lstrip()
 
 
