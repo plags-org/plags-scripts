@@ -16,6 +16,10 @@ import importlib
 import contextlib
 import functools
 
+if (sys.version_info.major, sys.version_info.minor) < (3, 8):
+    print('[ERROR] This script requires Python >= 3.8.')
+    sys.exit(1)
+
 
 class ExerciseStyle(enum.Enum):
     AS_IS = enum.auto()
@@ -37,12 +41,7 @@ def _func_source(f):
 def is_ellipsis_body(f):
     node = next(n for n in ast.walk(ast.parse(_func_source(f))) if type(n) == ast.FunctionDef and n.name == f.__name__)
     def is_ellipsis(s):
-        if type(s) == ast.Expr:
-            b1 = type(s.value) == ast.Ellipsis # Python <= 3.7 (Deprecated in 3.8)
-            b2 = type(s.value) == ast.Constant and s.value.value == ... # Python >= 3.8
-            return b1 or b2
-        else:
-            return False
+        return type(s) == ast.Expr and type(s.value) == ast.Constant and s.value.value == ...
     return all(is_ellipsis(s) for s in node.body)
 
 
