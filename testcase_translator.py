@@ -188,8 +188,10 @@ def generate_methods(testcases, show_arguments):
                 rhs = rhs.count
 
             if lhs_args is None:
-                decls = []
                 lhs = f'self.answer.{name}'
+                if show_arguments:
+                    msg = f'Variable `{name}` is bound to value: '
+                    decls = [f"judge_util.set_unsuccessful_message(self, {msg!r} + repr({lhs}))"]
             else:
                 if show_arguments:
                     decls.append(f'{name} = judge_util.argument_logger(self, {name})')
