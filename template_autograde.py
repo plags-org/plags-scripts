@@ -6,14 +6,12 @@ import os
 import sys
 import contextlib
 
-import astunparse
-
 import ipynb_metadata
 import ipynb_util
 from build_autograde import FieldKey
 
-if (sys.version_info.major, sys.version_info.minor) < (3, 8):
-    print('[ERROR] This script requires Python >= 3.8.')
+if (sys.version_info.major, sys.version_info.minor) < (3, 9):
+    print('[ERROR] This script requires Python >= 3.9.')
     sys.exit(1)
 
 
@@ -123,7 +121,7 @@ def generate_precheck_test_code(prefill, answer):
     for funcdef in context_funcs:
         funcdef.originalname = funcdef.name
         funcdef.name = '_predefined_' + funcdef.name
-        templates.append(astunparse.unparse(funcdef).strip() + '\n')
+        templates.append(ast.unparse(funcdef).strip() + '\n')
 
     return code_cell(templates)
 
@@ -200,15 +198,15 @@ def generate_given_test_code(prefill, instructive_assertion):
     assert_methods = []
     for ty, test in typed_asserts:
         if ty in ((ast.Is,None),(ast.IsNot,None)):
-            assert_methods.append(f'{method_map[ty]}({astunparse.unparse(test.left).strip()})')
+            assert_methods.append(f'{method_map[ty]}({ast.unparse(test.left).strip()})')
         elif ty == ast.Not:
-            assert_methods.append(f'{method_map[ty]}({astunparse.unparse(test.operand).strip()})')
+            assert_methods.append(f'{method_map[ty]}({ast.unparse(test.operand).strip()})')
         elif ty is None:
-            assert_methods.append(f'{method_map[ty]}({astunparse.unparse(test).strip()})')
+            assert_methods.append(f'{method_map[ty]}({ast.unparse(test).strip()})')
         else:
-            assert_methods.append(f'{method_map[ty]}({astunparse.unparse(test.left).strip()}, {astunparse.unparse(test.comparators[0]).strip()})')
+            assert_methods.append(f'{method_map[ty]}({ast.unparse(test.left).strip()}, {ast.unparse(test.comparators[0]).strip()})')
 
-    imports = '\n'.join(astunparse.unparse(node).strip() for node in ast.walk(ast.parse(prefill)) if isinstance(node, (ast.Import, ast.ImportFrom)))
+    imports = '\n'.join(ast.unparse(node).strip() for node in ast.walk(ast.parse(prefill)) if isinstance(node, (ast.Import, ast.ImportFrom)))
 
     templates = [GIVEN_TEST_HEADER_TEMPLATE.format(f'\n{imports}\n' if imports else '')]
     for i, m in enumerate(assert_methods):
@@ -233,7 +231,7 @@ def {}(self):
 
 
 def generate_hidden_test_code(prefill):
-    imports = '\n'.join(astunparse.unparse(node).strip() for node in ast.walk(ast.parse(prefill)) if isinstance(node, (ast.Import, ast.ImportFrom)))
+    imports = '\n'.join(ast.unparse(node).strip() for node in ast.walk(ast.parse(prefill)) if isinstance(node, (ast.Import, ast.ImportFrom)))
     return code_cell([HIDDEN_TEST_HEADER_TEMPLATE.format(f'\n{imports}\n' if imports else '')])
 
 HIDDEN_TEST_HEADER_TEMPLATE = """
