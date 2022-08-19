@@ -39,6 +39,16 @@ class Exercise:
     answer_cell_content: str = ''
     test_modules: Iterable[Tuple[JudgeTestStageBase,str,str]] = dataclasses.field(default_factory=list)  # Iterable of modules, which are of type (Stage class, module content, directory path)
 
+    @classmethod
+    def load(cls, path):
+        path = os.path.abspath(path)
+        match = re.fullmatch(r'([a-zA-Z0-9_-]{1,64})\.ipynb', os.path.basename(path))
+        assert match is not None, f'An invalid name of master ipynb: {path}'
+        exercise_key = match.groups() [0]
+        raw_cells, metadata = ipynb_util.load_cells(path)
+        title = extract_first_heading(raw_cells) or exercise_key
+        return cls(key=exercise_key, path=path, title=title)
+
     def load_test_modules(self, test_module_paths):
         test_modules = []
         for path in test_module_paths:
@@ -137,22 +147,13 @@ def create_exercise_configuration(exercise: Exercise):
 
 
 def load_sources(source_paths: Iterable[str]):
-    exercises = []
-    existing_keys = {}
+    loadeds = {}
     for path in sorted(source_paths):
-        exercise_key, ext = os.path.splitext(os.path.basename(path))
-        if ext != '.ipynb':
-            logging.info(f'[INFO] Skip {path}')
-            continue
-        assert exercise_key not in existing_keys, \
-            f'[ERROR] Exercise key conflicts between `{path}` and `{existing_keys[exercise_key]}`.'
-        existing_keys[exercise_key] = path
-
-        raw_cells, metadata = ipynb_util.load_cells(path)
-        title = extract_first_heading(raw_cells) or exercise_key
-        exercises.append(Exercise(key=exercise_key, path=path, title=title))
+        ex = Exercise.load(path)
+        assert ex.key not in loadeds, f'Exercise key conflicts between `{path}` and `{loadeds[ex.key].path}`.'
+        loadeds[ex.key] = ex
         logging.info(f'[INFO] Loaded `{path}`')
-    return exercises
+    return list(loadeds.values())
 
 
 def cleanup_exercise_master_metadata(exercise, new_version=None):

@@ -78,6 +78,27 @@ class Exercise:
     builtin_test_modules = [] # List of module paths
 
     @classmethod
+    def load(cls, path):
+        path = os.path.abspath(path)
+        match = re.fullmatch(r'([a-zA-Z0-9_-]{1,64})\.ipynb', os.path.basename(path))
+        assert match is not None, f'An invalid name of master ipynb: {path}'
+        exercise_key = match.groups() [0]
+        raw_cells, _ = ipynb_util.load_cells(path)
+        fields = dict(split_cells_into_fields(FieldKey, raw_cells))
+
+        heading_regex = r'#+\s+(.*)'
+        first_line = fields[FieldKey.DESCRIPTION][0].source.strip().splitlines()[0]
+        match = re.fullmatch(heading_regex, first_line)
+        assert match is not None, f'The first cell of field {FieldKey.DESCRIPTION} does not start with a heading in Markdown: `{first_line}`.'
+        title = match.groups()[0]
+
+        test_modules = interpret_testcode_cells(os.path.dirname(path), fields.pop(FieldKey.SYSTEM_TESTCODE))
+        answer_cell_content = fields.pop(FieldKey.ANSWER_CELL_CONTENT)[0].source
+
+        return cls(key=exercise_key, path=path, title=title, test_modules=test_modules, answer_cell_content=answer_cell_content,
+                   **{f.name.lower(): cs for f, cs in fields.items()})
+
+    @classmethod
     def load_builtin_test_modules(cls, paths):
         for path in paths:
             path = os.path.abspath(path)
@@ -170,31 +191,9 @@ def split_cells_into_fields(field_enum_type, raw_cells: Iterable[dict]):
             assert all(x.cell_type == CellType.CODE for x in cells), f'Field of `{field_enum}` must have only code cell(s).'
 
         if len(cells) > 0 and FieldProperty.MARKDOWN_HEADED in field_enum.properties:
-            assert cells[0].cell_type == CellType.MARKDOWN
-            first_line_regex = r'#+\s+(.*)'
-            first_line = cells[0].source.strip().splitlines()[0]
-            m = re.fullmatch(first_line_regex, first_line)
-            assert m is not None, f'The first content cell does not start with a heading in Markdown: `{first_line}`.'
+            assert cells[0].cell_type == CellType.MARKDOWN, f'Field of `{field_enum}` must start with a Markdown cell.'
 
         yield field_enum, cells
-
-
-def load_exercise(dirpath, exercise_key):
-    path = os.path.abspath(os.path.join(dirpath, exercise_key + '.ipynb'))
-    raw_cells, _ = ipynb_util.load_cells(path)
-    fields = dict(split_cells_into_fields(FieldKey, raw_cells))
-
-    heading_regex = r'#+\s+(.*)'
-    description_first_line = fields[FieldKey.DESCRIPTION][0].source.strip().splitlines()[0]
-    title = re.fullmatch(heading_regex, description_first_line).groups()[0]
-
-    test_modules = interpret_testcode_cells(dirpath, fields.pop(FieldKey.SYSTEM_TESTCODE))
-    answer_cell_content = fields.pop(FieldKey.ANSWER_CELL_CONTENT)[0].source
-    exercise_kwargs = {
-        'key': exercise_key, 'path': path, 'title': title, 'test_modules': test_modules, 'answer_cell_content': answer_cell_content,
-        **{f.name.lower(): cs for f, cs in fields.items()},
-    }
-    return Exercise(**exercise_kwargs)
 
 
 def create_exercise_configuration(exercise: Exercise):
@@ -270,10 +269,17 @@ def create_filled_form(exercises):
     return [ex.answer_cell_filled().to_ipynb() for ex in exercises], metadata
 
 
-def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
-    exercises = []
+def load_sources(source_paths: Iterable[str], *, loader=Exercise.load):
+    loadeds = {}
+    def load_source(path):
+        ex = loader(path)
+        assert ex.key not in loadeds, f'Exercise key conflicts between `{path}` and `{loadeds[ex.key].path}`.'
+        loadeds[ex.key] = ex
+        logging.info(f'[INFO] Loaded `{ex.path}`')
+        return ex
+
+    singles = []
     bundles = collections.defaultdict(list)
-    existing_keys = {}
     for path in sorted(source_paths):
         if os.path.isdir(path):
             dirpath = path
@@ -281,28 +287,12 @@ def load_sources(source_paths: Iterable[str], *, master_loader=load_exercise):
             dirname = dirname if dirname else os.path.basename(parent)
             logging.info(f'[INFO] Loading `{dirpath}`...')
             for nb in sorted(os.listdir(dirpath)):
-                match = re.fullmatch(fr'({dirname}[-_].*)\.ipynb', nb)
-                if match is None:
-                    continue
-                exercise_key = match.groups()[0]
-                assert exercise_key not in existing_keys, \
-                    f'[ERROR] Exercise key conflicts between `{dirpath}/{nb}` and `{existing_keys[exercise_key]}`.'
-                existing_keys[exercise_key] = os.path.join(dirpath, nb)
-                bundles[dirpath].append(master_loader(dirpath, exercise_key))
-                logging.info(f'[INFO] Loaded `{dirpath}/{nb}`')
+                if re.fullmatch(fr'{dirname}[-_].*\.ipynb', nb) is not None:
+                    bundles[dirpath].append(load_source(os.path.join(dirpath, nb)))
         else:
-            filepath = path
-            if not filepath.endswith('.ipynb'):
-                logging.info(f'[INFO] Skip {filepath}')
-                continue
-            dirpath, filename = os.path.split(filepath)
-            exercise_key, _ = os.path.splitext(filename)
-            assert exercise_key not in existing_keys, \
-                f'[ERROR] Exercise key conflicts between `{filepath}` and `{existing_keys[exercise_key]}`.'
-            existing_keys[exercise_key] = filepath
-            exercises.append(master_loader(dirpath, exercise_key))
-            logging.info(f'[INFO] Loaded `{filepath}`')
-    return exercises, bundles
+            singles.append(load_source(path))
+
+    return list(loadeds.values()), singles, bundles
 
 
 def cleanup_exercise_master(exercise, new_version=None):
@@ -379,8 +369,7 @@ def main():
 
     Exercise.load_builtin_test_modules(commandline_options.builtin_teststage)
 
-    singles, bundles = load_sources(commandline_options.src)
-    all_exercises = list(itertools.chain(*bundles.values(), singles))
+    all_exercises, singles, bundles = load_sources(commandline_options.src)
 
     logging.info('[INFO] Cleaning up exercise masters...')
     for ex in all_exercises:
