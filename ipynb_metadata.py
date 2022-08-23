@@ -15,19 +15,22 @@ def submission_metadata(key_to_version, extraction: bool):
         **COMMON_METADATA,
     }
 
-def master_metadata(exercise_key: str, autograde: bool, version: str, title=None, deadlines=None, drive=None, *, score_visibility=None, shared_after_confirmed=None):
+def master_metadata(exercise_key: str, autograde: bool, version: str, title=None, deadlines=None, drive=None, *, confidentiality=None, shared_after_confirmed=None):
     if title is None:
         title = exercise_key
     if deadlines is None:
         deadlines = {}
     deadlines = {k: deadlines.get(k) for k in ('begin', 'open', 'check', 'close', 'end')}
+    if confidentiality is None:
+        confidentiality = {}
+    confidentiality = {k: a for k in ('score', 'remarks') if (a := confidentiality.get(k)) in ('student', 'assistant', 'lecturer', None)}
     return {
         'judge_master': {
             'autograde': autograde,
+            'confidentiality': confidentiality,
             'deadlines': deadlines,
             'drive': drive,
             'exercise_key': exercise_key,
-            'score_visibility': score_visibility,
             'shared_after_confirmed': shared_after_confirmed,
             'title': title,
             'version': version,
