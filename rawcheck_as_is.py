@@ -5,8 +5,11 @@ RawCheck = judge_util.teststage(exercise_style=judge_util.ExerciseStyle.AS_IS)
 
 @judge_util.check_method(RawCheck)
 def question_exists(self):
+    import string
     src = judge_util.extract_question_cell_source(self)
-    if src.strip():
+    punctuations = frozenset(string.punctuation)
+    if ''.join(x for x in ''.join(src.split()) if x not in punctuations):
+        # Non-whitespace and non-punctuation characters exist
         judge_util.set_ok_tag(self, 'QE')
 
 
