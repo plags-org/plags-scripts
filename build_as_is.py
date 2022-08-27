@@ -214,7 +214,7 @@ def append_question_cell(cells):
     body = {
         'cell_type': 'markdown',
         'metadata': judge_util.question_cell_metadata(),
-        'source': [],
+        'source': ['...'],
     }
     header = {
         'cell_type': 'markdown',
