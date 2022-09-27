@@ -17,6 +17,8 @@ def toplevel_check(self):
             judge_util.set_fail_tag(self, 'MCE')
         else:
             judge_util.set_fail_tag(self, 'SE')
+        import traceback
+        judge_util.set_unsuccessful_message(self, ''.join(traceback.format_exception(None, e, None)))
         self.fail()
     except FileNotFoundError:
         judge_util.set_fail_tag(self, 'IOT')
