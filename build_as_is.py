@@ -95,9 +95,9 @@ def interpret_test_module(path):
 
 
 def extract_first_heading(cells):
-    for cell_type, source in ipynb_util.normalized_cells(cells):
-        if cell_type == ipynb_util.CellType.MARKDOWN:
-            m = re.search(r'^#+\s+(.*)$', source, re.MULTILINE)
+    for cell in ipynb_util.normalized_cells(cells):
+        if cell.cell_type == ipynb_util.CellType.MARKDOWN:
+            m = re.search(r'^#+\s+(.*)$', cell.source, re.MULTILINE)
             if m:
                 return m.groups()[0]
     return None

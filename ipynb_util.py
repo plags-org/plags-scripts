@@ -11,26 +11,26 @@ class CellType(enum.Enum):
     CODE = 'code'
     MARKDOWN = 'markdown'
 
-class Cell(collections.namedtuple('Cell', ('cell_type', 'source'))):
+class Cell(collections.namedtuple('Cell', ('cell_type', 'source', 'metadata'))):
     def to_ipynb(self):
         if self.cell_type == CellType.CODE:
             return {'cell_type': self.cell_type.value,
                     'execution_count': None,
-                    'metadata': {},
+                    'metadata': {} if self.metadata is None else self.metadata,
                     'outputs': [],
                     'source': self.source.splitlines(True)}
         else:
             return {'cell_type': self.cell_type.value,
-                    'metadata': {},
+                    'metadata': {} if self.metadata is None else self.metadata,
                     'source': self.source.splitlines(True)}
 
     @classmethod
-    def code_cell(cls, src):
-        return cls(CellType.CODE, src)
+    def code_cell(cls, src, metadata=None):
+        return cls(CellType.CODE, src, metadata)
 
     @classmethod
-    def markdown_cell(cls, src):
-        return cls(CellType.MARKDOWN, src)
+    def markdown_cell(cls, src, metadata=None):
+        return cls(CellType.MARKDOWN, src, metadata)
 
 code_cell = Cell.code_cell
 markdown_cell = Cell.markdown_cell
@@ -42,7 +42,7 @@ def normalized_cells(cells):
         assert any(x.value == c['cell_type'] for x in CellType), \
             f"Invalid notebook: above cell in {notebook_path} has invalid 'cell_type' property: {c['cell_type']}"
         assert 'source' in c, f"Invalid notebook: above cell in {notebook_path} has no 'source' property."
-        yield Cell(CellType(c['cell_type']), ''.join(c['source']).strip())
+        yield Cell(CellType(c['cell_type']), ''.join(c['source']).strip(), None)
 
 def load_cells(notebook_path: str, outputs_dropped=False):
     with open(notebook_path, encoding='utf-8') as f:

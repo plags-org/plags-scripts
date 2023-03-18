@@ -34,7 +34,7 @@ CONF_DIR = 'conf'
 ANSWER_CELL_FORMAT = """
 ##########################################################
 ##  <[ {exercise_key} ]> 解答セル (Answer cell)
-##  このコメントの書き変えを禁ず (Never edit this comment)
+##  このセルの複製・削除を禁ず (Neither copy nor delete this cell)
 ##########################################################
 
 {content}""".strip()
@@ -107,11 +107,15 @@ class Exercise:
 
     def answer_cell(self):
         s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.answer_cell_content)
-        return ipynb_util.code_cell(s)
+        metadata = judge_util.answer_cell_metadata()
+        metadata['name'] += ':' + self.key
+        return ipynb_util.code_cell(s, metadata)
 
     def answer_cell_filled(self):
         s = ANSWER_CELL_FORMAT.format(exercise_key=self.key, content=self.example_answers[0].source if self.example_answers else self.answer_cell_content)
-        return ipynb_util.code_cell(s)
+        metadata = judge_util.answer_cell_metadata()
+        metadata['name'] += ':' + self.key
+        return ipynb_util.code_cell(s, metadata)
 
 
 def interpret_testcode_cells(dirpath, cells):
