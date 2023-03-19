@@ -9,9 +9,15 @@ COMMON_METADATA = {
     },
 }
 
+METADATA_BASE_KEY = 'plags'
+
 def submission_metadata(key_to_version, extraction: bool):
     return {
-        'judge_submission': {'exercises': key_to_version, 'extraction': extraction},
+        METADATA_BASE_KEY: {
+            'type': 'submission',
+            'exercises': key_to_version,
+            'extraction': extraction,
+        },
         **COMMON_METADATA,
     }
 
@@ -25,12 +31,13 @@ def master_metadata(exercise_key: str, autograde: bool, version: str, title=None
         confidentiality = {}
     confidentiality = {k: a for k in ('score', 'remarks') if (a := confidentiality.get(k)) in ('student', 'assistant', 'lecturer', None)}
     return {
-        'judge_master': {
-            'autograde': autograde,
+        METADATA_BASE_KEY: {
+            'type': 'master',
+            'evaluation': autograde,
             'confidentiality': confidentiality,
             'deadlines': deadlines,
             'drive': drive,
-            'exercise_key': exercise_key,
+            'name': exercise_key,
             'shared_after_confirmed': shared_after_confirmed,
             'title': title,
             'version': version,
@@ -45,17 +52,17 @@ def master_metadata_version(metadata=None, *, filepath=None):
         metadata = {}
     if filepath is not None:
         _, metadata = ipynb_util.load_cells(filepath)
-    return metadata.get('judge_master', {}).get('version', '')
+    return metadata.get(METADATA_BASE_KEY, {}).get('version', '')
 
 def master_metadata_deadlines(metadata):
-    deadlines = metadata.get('judge_master', {}).get('deadlines', {})
+    deadlines = metadata.get(METADATA_BASE_KEY, {}).get('deadlines', {})
     return {k: deadlines.get(k) for k in ('begin', 'open', 'check', 'close', 'end')}
 
 def master_metadata_drive(metadata):
-    return metadata.get('judge_master', {}).get('drive')
+    return metadata.get(METADATA_BASE_KEY, {}).get('drive')
 
 def extend_master_metadata_for_trial(metadata, initial_source):
-    metadata['judge_master']['trial'] = {
+    metadata[METADATA_BASE_KEY]['trial'] = {
         'initial_source': initial_source,
         'editor': {
             'name': 'CodeMirror',
