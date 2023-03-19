@@ -33,7 +33,7 @@ CONF_DIR = 'conf'
 
 @dataclasses.dataclass
 class Exercise:
-    key: str        # Key string
+    name: str       # Identifier string
     path: str       # File path
     title: str      # Title string
     answer_cell_content: str = ''
@@ -44,10 +44,10 @@ class Exercise:
         path = os.path.abspath(path)
         match = re.fullmatch(r'([a-zA-Z0-9_-]{1,64})\.ipynb', os.path.basename(path))
         assert match is not None, f'An invalid name of master ipynb: {path}'
-        exercise_key = match.groups() [0]
+        name = match.groups()[0]
         raw_cells, metadata = ipynb_util.load_cells(path)
-        title = extract_first_heading(raw_cells) or exercise_key
-        return cls(key=exercise_key, path=path, title=title)
+        title = extract_first_heading(raw_cells) or name
+        return cls(name=name, path=path, title=title)
 
     def load_test_modules(self, test_module_paths):
         test_modules = []
@@ -106,7 +106,7 @@ def extract_first_heading(cells):
 def create_configuration(exercises: Iterable[Exercise]):
     shutil.rmtree(CONF_DIR, ignore_errors=True)
     for exercise in exercises:
-        logging.info(f'[INFO] Creating configuration for `{exercise.key}` ...')
+        logging.info(f'[INFO] Creating configuration for `{exercise.name}` ...')
         create_exercise_configuration(exercise)
 
     logging.info(f'[INFO] Creating configuration zip `{CONF_DIR}.zip` ...')
@@ -118,19 +118,19 @@ def create_configuration(exercises: Iterable[Exercise]):
 
 
 def create_exercise_configuration(exercise: Exercise):
-    tests_dir = os.path.join(CONF_DIR, exercise.key)
+    tests_dir = os.path.join(CONF_DIR, exercise.name)
     os.makedirs(tests_dir, exist_ok=True)
 
     cells, metadata = ipynb_util.load_cells(exercise.path, True)
     if exercise.answer_cell_content:
         cells.append(ipynb_util.code_cell(exercise.answer_cell_content).to_ipynb())
-    ipynb_util.save_as_notebook(os.path.join(CONF_DIR, f'{exercise.key}.ipynb'), cells, metadata)
+    ipynb_util.save_as_notebook(os.path.join(CONF_DIR, f'{exercise.name}.ipynb'), cells, metadata)
 
     if not exercise.test_modules:
         return
 
     version = ipynb_metadata.master_metadata_version(metadata)
-    setting = judge_setting.generate_judge_setting(exercise.key, version, [stage for stage, _, _ in exercise.test_modules], judge_util.ExerciseStyle.AS_IS)
+    setting = judge_setting.generate_judge_setting(exercise.name, version, [stage for stage, _, _ in exercise.test_modules], judge_util.ExerciseStyle.AS_IS)
     with open(os.path.join(tests_dir, 'setting.json'), 'w', encoding='utf-8') as f:
         json.dump(setting, f, indent=1, ensure_ascii=False)
 
@@ -150,8 +150,8 @@ def load_sources(source_paths: Iterable[str]):
     loadeds = {}
     for path in sorted(source_paths):
         ex = Exercise.load(path)
-        assert ex.key not in loadeds, f'Exercise key conflicts between `{path}` and `{loadeds[ex.key].path}`.'
-        loadeds[ex.key] = ex
+        assert ex.name not in loadeds, f'Exercise key conflicts between `{path}` and `{loadeds[ex.name].path}`.'
+        loadeds[ex.name] = ex
         logging.info(f'[INFO] Loaded `{path}`')
     return list(loadeds.values())
 
@@ -170,11 +170,11 @@ def cleanup_exercise_master_metadata(exercise, new_version=None):
         assert isinstance(new_version, str)
 
     if new_version != version:
-        logging.info(f'[INFO] Renew version of {exercise.key}')
+        logging.info(f'[INFO] Renew version of {exercise.name}')
 
     deadlines = ipynb_metadata.master_metadata_deadlines(metadata)
     drive = ipynb_metadata.master_metadata_drive(metadata)
-    metadata_new = ipynb_metadata.master_metadata(exercise.key, bool(exercise.test_modules), new_version, exercise.title, deadlines, drive)
+    metadata_new = ipynb_metadata.master_metadata(exercise.name, bool(exercise.test_modules), new_version, exercise.title, deadlines, drive)
     ipynb_util.save_as_notebook(exercise.path, cells, metadata_new)
 
 
@@ -182,15 +182,15 @@ def update_exercise_master_metadata(exercises, new_deadlines, new_drive):
     for ex in exercises:
         cells, metadata = ipynb_util.load_cells(ex.path)
         deadlines_cur = ipynb_metadata.master_metadata_deadlines(metadata)
-        deadlines = new_deadlines.get(ex.key, deadlines_cur)
+        deadlines = new_deadlines.get(ex.name, deadlines_cur)
         if deadlines != deadlines_cur:
-            logging.info(f'[INFO] Renew deadline of {ex.key}')
+            logging.info(f'[INFO] Renew deadline of {ex.name}')
         drive_cur = ipynb_metadata.master_metadata_drive(metadata)
-        drive = new_drive.get(ex.key, drive_cur)
+        drive = new_drive.get(ex.name, drive_cur)
         if drive != drive_cur:
-            logging.info(f'[INFO] Renew Google Drive ID/URL of {ex.key}')
+            logging.info(f'[INFO] Renew Google Drive ID/URL of {ex.name}')
         version = ipynb_metadata.master_metadata_version(metadata)
-        metadata = ipynb_metadata.master_metadata(ex.key,  bool(ex.test_modules), version, ex.title, deadlines, drive)
+        metadata = ipynb_metadata.master_metadata(ex.name,  bool(ex.test_modules), version, ex.title, deadlines, drive)
         ipynb_util.save_as_notebook(ex.path, cells, metadata)
 
 
@@ -297,9 +297,9 @@ def main():
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-f', '--form_dir', nargs='?', help='Specify a target directory of form generation (defualt: the same as the directory of each master).')
     parser.add_argument('-gd', '--google_drive', nargs='?', metavar='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
-    parser.add_argument('-ag', '--autograde', nargs='?', const='', metavar='TEST_MOD_JSON', help='Enable auto tests, optionally taking a JSON file to specify test modules (default: test_${exercise_key}.py).')
+    parser.add_argument('-ag', '--autograde', nargs='?', const='', metavar='TEST_MOD_JSON', help='Enable auto tests, optionally taking a JSON file to specify test modules (default: test_${exercise_name}.py).')
     parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck_as_is.py'], help='Specify module files of builtin test stages (default: rawcheck_as_is.py), enabled if -ag/--autograde is also specified.')
-    parser.add_argument('-ac', '--answer_cell', nargs='?', const='',  metavar='PREFILL_CONTENT_JSON', help='Append an answer cell to each form, optionally taking a JSON file to specify prefill answer content (default: ${exercise_key}.py if exists).')
+    parser.add_argument('-ac', '--answer_cell', nargs='?', const='',  metavar='PREFILL_CONTENT_JSON', help='Append an answer cell to each form, optionally taking a JSON file to specify prefill answer content (default: ${exercise_name}.py if exists).')
     parser.add_argument('-qc', '--question_cell', action='store_true', help='Append a qustion cell to each form.')
     parser.add_argument('-t', '--run_test', nargs='?', const='', metavar='RESULT_DIR', help='Run tests for all the exercises, optionally taking a target directory of result generation (defualt: the same as the directory of each master).')
     commandline_options = parser.parse_args()
@@ -313,7 +313,7 @@ def main():
                 mod_dict = json.load(f)
         for ex in exercises:
             builtin_paths = commandline_options.builtin_teststage
-            mod_paths = mod_dict.get(ex.key, [os.path.join(os.path.dirname(ex.path), f'test_{ex.key}.py')])
+            mod_paths = mod_dict.get(ex.name, [os.path.join(os.path.dirname(ex.path), f'test_{ex.name}.py')])
             ex.load_test_modules(builtin_paths + mod_paths)
 
     if commandline_options.answer_cell is not None:
@@ -322,7 +322,7 @@ def main():
             with open(commandline_options.answer_cell, encoding='utf-8') as f:
                 ans_dict = json.load(f)
         for ex in exercises:
-            path = ans_dict.get(ex.key, os.path.join(os.path.dirname(ex.path), f'{ex.key}.py'))
+            path = ans_dict.get(ex.name, os.path.join(os.path.dirname(ex.path), f'{ex.name}.py'))
             with contextlib.suppress(FileNotFoundError), open(path, encoding='utf-8') as f:
                 ex.answer_cell_content = f.read()
 
@@ -345,11 +345,11 @@ def main():
     for ex in exercises:
         cells, metadata = ipynb_util.load_cells(ex.path, True)
         version = ipynb_metadata.master_metadata_version(metadata)
-        submission_metadata =  ipynb_metadata.submission_metadata({ex.key: version}, False)
+        submission_metadata =  ipynb_metadata.submission_metadata({ex.name: version}, False)
         if commandline_options.form_dir:
-            filepath = os.path.join(commandline_options.form_dir, f'{ex.key}.ipynb')
+            filepath = os.path.join(commandline_options.form_dir, f'{ex.name}.ipynb')
         else:
-            filepath = os.path.join(os.path.dirname(ex.path), f'form_{ex.key}.ipynb')
+            filepath = os.path.join(os.path.dirname(ex.path), f'form_{ex.name}.ipynb')
         if commandline_options.answer_cell is not None:
             append_answer_cell(cells, ex.answer_cell_content)
         if commandline_options.question_cell:
@@ -362,11 +362,11 @@ def main():
         for ex in exercises:
             cells, metadata = ipynb_util.load_cells(ex.path, True)
             version = ipynb_metadata.master_metadata_version(metadata)
-            submission_metadata =  ipynb_metadata.submission_metadata({ex.key: version}, False)
+            submission_metadata =  ipynb_metadata.submission_metadata({ex.name: version}, False)
             if commandline_options.run_test:
-                filepath = os.path.join(commandline_options.run_test, f'{ex.key}.ipynb')
+                filepath = os.path.join(commandline_options.run_test, f'{ex.name}.ipynb')
             else:
-                filepath = os.path.join(ex.dirpath, f'result_{ex.key}.ipynb')
+                filepath = os.path.join(ex.dirpath, f'result_{ex.name}.ipynb')
             append_answer_cell(cells, ex.answer_cell_content)
             append_test_results(cells, ex)
             ipynb_util.save_as_notebook(filepath, cells, submission_metadata)

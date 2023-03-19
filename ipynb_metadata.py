@@ -11,19 +11,19 @@ COMMON_METADATA = {
 
 METADATA_BASE_KEY = 'plags'
 
-def submission_metadata(key_to_version, extraction: bool):
+def submission_metadata(name_to_version, extraction: bool):
     return {
         METADATA_BASE_KEY: {
             'type': 'submission',
-            'exercises': key_to_version,
+            'exercises': name_to_version,
             'extraction': extraction,
         },
         **COMMON_METADATA,
     }
 
-def master_metadata(exercise_key: str, autograde: bool, version: str, title=None, deadlines=None, drive=None, *, confidentiality=None, shared_after_confirmed=None):
+def master_metadata(name: str, autograde: bool, version: str, title=None, deadlines=None, drive=None, *, confidentiality=None, shared_after_confirmed=None):
     if title is None:
-        title = exercise_key
+        title = name
     if deadlines is None:
         deadlines = {}
     deadlines = {k: deadlines.get(k) for k in ('begin', 'open', 'check', 'close', 'end')}
@@ -37,7 +37,7 @@ def master_metadata(exercise_key: str, autograde: bool, version: str, title=None
             'confidentiality': confidentiality,
             'deadlines': deadlines,
             'drive': drive,
-            'name': exercise_key,
+            'name': name,
             'shared_after_confirmed': shared_after_confirmed,
             'title': title,
             'version': version,
