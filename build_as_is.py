@@ -297,8 +297,8 @@ def main():
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-f', '--form_dir', nargs='?', help='Specify a target directory of form generation (defualt: the same as the directory of each master).')
     parser.add_argument('-gd', '--google_drive', nargs='?', metavar='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
-    parser.add_argument('-ag', '--autograde', nargs='?', const='', metavar='TEST_MOD_JSON', help='Enable auto tests, optionally taking a JSON file to specify test modules (default: test_${exercise_name}.py).')
-    parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck_as_is.py'], help='Specify module files of builtin test stages (default: rawcheck_as_is.py), enabled if -ag/--autograde is also specified.')
+    parser.add_argument('-ae', '--auto_eval', nargs='?', const='', metavar='TEST_MOD_JSON', help='Enable auto tests, optionally taking a JSON file to specify test modules (default: test_${exercise_name}.py).')
+    parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck_as_is.py'], help='Specify module files of builtin test stages (default: rawcheck_as_is.py), enabled if -ae/--auto_eval is also specified.')
     parser.add_argument('-ac', '--answer_cell', nargs='?', const='',  metavar='PREFILL_CONTENT_JSON', help='Append an answer cell to each form, optionally taking a JSON file to specify prefill answer content (default: ${exercise_name}.py if exists).')
     parser.add_argument('-qc', '--question_cell', action='store_true', help='Append a qustion cell to each form.')
     parser.add_argument('-t', '--run_test', nargs='?', const='', metavar='RESULT_DIR', help='Run tests for all the exercises, optionally taking a target directory of result generation (defualt: the same as the directory of each master).')
@@ -306,10 +306,10 @@ def main():
 
     exercises = load_sources(commandline_options.src)
 
-    if commandline_options.autograde is not None:
+    if commandline_options.auto_eval is not None:
         mod_dict = {}
-        if commandline_options.autograde != '':
-            with open(commandline_options.autograde, encoding='utf-8') as f:
+        if commandline_options.auto_eval != '':
+            with open(commandline_options.auto_eval, encoding='utf-8') as f:
                 mod_dict = json.load(f)
         for ex in exercises:
             builtin_paths = commandline_options.builtin_teststage
@@ -374,12 +374,12 @@ def main():
 
     if commandline_options.configuration is not None:
         if commandline_options.configuration:
-            assert commandline_options.autograde is not None
+            assert commandline_options.auto_eval is not None
             judge_setting.load_judge_parameters(commandline_options.configuration)
             logging.info(f'[INFO] Creating configuration with `{repr(judge_setting.judge_parameters)}` ...')
         else:
-            assert commandline_options.autograde is None
-            logging.info(f'[INFO] Creating configuration with no autograde ...')
+            assert commandline_options.auto_eval is None
+            logging.info(f'[INFO] Creating configuration with no auto_eval ...')
         create_configuration(exercises)
 
 

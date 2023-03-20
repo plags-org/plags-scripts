@@ -21,7 +21,7 @@ def submission_metadata(name_to_version, extraction: bool):
         **COMMON_METADATA,
     }
 
-def master_metadata(name: str, autograde: bool, version: str, title=None, deadlines=None, drive=None, *, confidentiality=None, shared_after_confirmed=None):
+def master_metadata(name: str, evaluation: bool, version: str, title=None, deadlines=None, drive=None, *, confidentiality=None, shared_after_confirmed=None):
     if title is None:
         title = name
     if deadlines is None:
@@ -33,7 +33,7 @@ def master_metadata(name: str, autograde: bool, version: str, title=None, deadli
     return {
         METADATA_BASE_KEY: {
             'type': 'master',
-            'evaluation': autograde,
+            'evaluation': evaluation,
             'confidentiality': confidentiality,
             'deadlines': deadlines,
             'drive': drive,

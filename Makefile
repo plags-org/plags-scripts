@@ -14,7 +14,7 @@ all:	conf.zip
 
 conf.zip:	$(MASTERS) $(PREFILLS) test_mod.json
 	mkdir -p $(FORM_DIR)
-	python3 build_as_is.py -f $(FORM_DIR) -c judge_env.json -ag test_mod.json -ac -qc $(MASTERS)
+	python3 build_as_is.py -f $(FORM_DIR) -c judge_env.json -ae test_mod.json -ac -qc $(MASTERS)
 
 $(PREFILLS):
 	touch $@
@@ -28,7 +28,7 @@ $(TESTS):	$(wildcard $@/*.py)
 
 test:	test_mod.json answer_mod.json
 	mkdir -p $(FORM_DIR).tmp $(RESULT_DIR)
-	python3 build_as_is.py -f $(FORM_DIR).tmp -ag test_mod.json -ac answer_mod.json -qc -t $(RESULT_DIR) $(MASTERS)
+	python3 build_as_is.py -f $(FORM_DIR).tmp -ae test_mod.json -ac answer_mod.json -qc -t $(RESULT_DIR) $(MASTERS)
 	rm -fR $(FORM_DIR).tmp
 
 answer_mod.json:	$(ANSWERS)
