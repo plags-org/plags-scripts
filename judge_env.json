@@ -1,6 +1,6 @@
 {
     "default": {
-        "environment": "python__anaconda3-2021.05",
+        "environment": "python__anaconda3-2022.10",
         "time_limit": 2,
         "memory_limit": 256
     },
