@@ -296,8 +296,9 @@ function gen_drive_js() {
     const fp = f.getUrl().split('/')
     const fid = fp[fp.length - 2]
     if (!f.getName().endsWith('.ipynb')) continue
-    const metadata = JSON.parse(f.getBlob().getDataAsString())['metadata']['judge_submission']
-    for (const key in metadata['exercises']) {
+    const metadata = JSON.parse(f.getBlob().getDataAsString())['metadata']
+    if (!('plags' in metadata && metadata['plags']['type'] == 'submission')) continue
+    for (const key in metadata['plags']['exercises']) {
       d[key] = fid
     }
   }
