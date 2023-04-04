@@ -20,6 +20,11 @@ def toplevel_check(self):
         import traceback
         judge_util.set_unsuccessful_message(self, ''.join(traceback.format_exception(None, e, None)))
         self.fail()
+    except NameError as e:
+        judge_util.set_fail_tag(self, 'UNU')
+        import traceback
+        judge_util.set_unsuccessful_message(self, ''.join(traceback.format_exception(None, e, None)))
+        self.fail()
     except FileNotFoundError:
         judge_util.set_fail_tag(self, 'IOT')
         self.fail()

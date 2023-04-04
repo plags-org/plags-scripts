@@ -123,6 +123,7 @@ PREDEFINED_TAGS = EvaluationTagMapping((
     EvaluationTag('SCE', 'Shell Command (!command) Exists', '#ffbf3f', '#ffdfbf'),
     EvaluationTag('MCE', 'Magic Command (%command) Exists', '#ffbf3f', '#ffdfbf'),
     EvaluationTag('UMI', 'Unsupported Module Imported', '#ffbf3f', '#ffdfbf'),
+    EvaluationTag('UNU', 'Undefined Name Used', '#ffbf3f', '#ffdfbf'),
     EvaluationTag('TE', 'Top-level Error', '#ffbf3f', '#ffdfbf'),
     EvaluationTag('IOT', 'I/O found at Top level', '#ffbf3f', '#ffdfbf'),
     EvaluationTag('QE', 'Question Exists', '#6f00ff', '#e5d1ff'),
@@ -323,6 +324,7 @@ def test_method(testcase_cls):
             set_ok_tag(self, 'CO')
             set_fail_tag(self, 'IO')
             set_error_tag(self, 'RLE', RecursionError)
+            set_error_tag(self, 'UNU', NameError)
             func(self)
         name = _encode_method_name(func.__name__)
         setattr(testcase_cls, name, wrapper_method)
