@@ -24,19 +24,14 @@ test_mod.json:	$(TESTS)
 
 $(TESTS):	$(wildcard $@/*.py)
 	mkdir -p $@
-	if [ $(words $(wildcard $@/*.py)) -ne 0 ]; then touch -r $$(ls -t $@/*.py | head -n 1) $@; fi
+	if [ $(words $(wildcard $@/*.py)) -ne 0 ]; then touch -r $$(ls -dt $@ $@/*.py | head -n 1) $@; fi
 
-test:	test_mod.json answer_mod.json
+test:	test_mod.json
+	python3 -c "import json,os,sys; print(json.dumps({os.path.basename(path)[:-3]: path for path in sorted(sys.argv[1:]) if path.endswith('.py')}, ensure_ascii=False, indent=4))" $(ANSWERS) > answer_mod.json
 	mkdir -p $(FORM_DIR).tmp $(RESULT_DIR)
 	python3 build_as_is.py -f $(FORM_DIR).tmp -ae test_mod.json -ac answer_mod.json -qc -t $(RESULT_DIR) $(MASTERS)
 	rm -fR $(FORM_DIR).tmp
-
-answer_mod.json:	$(ANSWERS)
-	python3 -c "import json,os,sys; print(json.dumps({os.path.basename(path)[:-3]: path for path in sorted(sys.argv[1:]) if path.endswith('.py')}, ensure_ascii=False, indent=4))" $(ANSWERS) > answer_mod.json
-
-$(ANSWERS):
-	mkdir -p $(ANSWER_DIR)
-	touch $@
+	rm -f answer_mod.json
 
 clean:
 	rm -fR conf.zip conf test_mod.json answer_mod.json $(FORM_DIR) $(RESULT_DIR)
