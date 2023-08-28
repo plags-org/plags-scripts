@@ -587,11 +587,13 @@ def render_details_html(rows):
     return '\n'.join(unsuccessful_detail_html(x) for x in rows if x.status != ResultStatus.PASS)
 
 
-def unittest_main(*, on_ipynb='IPython' in sys.modules, module='__main__'):
+def unittest_main(*, on_ipynb='IPython' in sys.modules, force_json=False, module='__main__'):
     global _message_log
     _message_log = {}
     stream = io.StringIO()
     main = unittest.main(module=module, argv=[''], testRunner=JudgeTestRunner(stream, verbosity=2), exit=False)
+    if force_json:
+        return main.result.to_json()
     if on_ipynb:
         test_env = vars(sys.modules[module] if isinstance(module, str) else module)
         stage_name = {v: n if v.name is None else v.name for n, v in test_env.items() if isinstance(v, type) and issubclass(v, JudgeTestStageBase)}

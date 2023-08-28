@@ -242,7 +242,7 @@ def append_test_results(cells, exercise):
             }
         ],
         'source': source.splitlines(True),
-    } for html, source in results]
+    } for _, source, html in results]
     header = {
         'cell_type': 'markdown',
         'metadata': {},
@@ -252,7 +252,7 @@ def append_test_results(cells, exercise):
     cells.extend(body)
 
 
-def run_test(exercise):
+def run_test(exercise, *, force_json=False):
     path = sys.path
     cwd = os.getcwd()
 
@@ -278,8 +278,8 @@ def run_test(exercise):
         append_answer_cell(cells, exercise.answer_cell_content)
         ipynb_util.save_as_notebook(judge_util.ExerciseStyle.AS_IS.submission_filename(), cells, {})
 
-        html = judge_util.unittest_main(on_ipynb=True, module=test_mod)
-        results.append((html, content))
+        result = judge_util.unittest_main(force_json=force_json, on_ipynb=True, module=test_mod)
+        results.append((stage, content, result))
 
         os.remove(judge_util.ExerciseStyle.AS_IS.submission_filename())
         os.remove(f'{test_mod_name}.py')
@@ -301,7 +301,7 @@ def main():
     parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck_as_is.py'], help='Specify module files of builtin test stages (default: rawcheck_as_is.py), enabled if -ae/--auto_eval is also specified.')
     parser.add_argument('-ac', '--answer_cell', nargs='?', const='',  metavar='PREFILL_CONTENT_JSON', help='Append an answer cell to each form, optionally taking a JSON file to specify prefill answer content (default: ${exercise_name}.py if exists).')
     parser.add_argument('-qc', '--question_cell', action='store_true', help='Append a qustion cell to each form.')
-    parser.add_argument('-t', '--run_test', nargs='?', const='', metavar='RESULT_DIR', help='Run tests for all the exercises, optionally taking a target directory of result generation (defualt: the same as the directory of each master).')
+    parser.add_argument('-t', '--run_test', metavar='RESULT_DEST', help='Run tests for all the exercises, taking a destination of result generation: ipynb output per exercise if a directory is specified, otherwise JSON output.')
     commandline_options = parser.parse_args()
 
     exercises = load_sources(commandline_options.src)
@@ -359,18 +359,23 @@ def main():
 
     if commandline_options.run_test is not None:
         logging.info('[INFO] Creating test results...')
+        results = {}
         for ex in exercises:
             cells, metadata = ipynb_util.load_cells(ex.path, True)
             version = ipynb_metadata.master_metadata_version(metadata)
             submission_metadata =  ipynb_metadata.submission_metadata({ex.name: version}, False)
-            if commandline_options.run_test:
+            if os.path.isdir(commandline_options.run_test):
                 filepath = os.path.join(commandline_options.run_test, f'{ex.name}.ipynb')
+                append_answer_cell(cells, ex.answer_cell_content)
+                append_test_results(cells, ex)
+                ipynb_util.save_as_notebook(filepath, cells, submission_metadata)
+                logging.info(f'[INFO] Generated `{filepath}`')
             else:
-                filepath = os.path.join(ex.dirpath, f'result_{ex.name}.ipynb')
-            append_answer_cell(cells, ex.answer_cell_content)
-            append_test_results(cells, ex)
-            ipynb_util.save_as_notebook(filepath, cells, submission_metadata)
-            logging.info(f'[INFO] Generated `{filepath}`')
+                results[ex.name] = [{'stage':stage.name, 'source': content, 'result': json} for stage, content, json in run_test(ex, force_json=True)]
+        if results:
+            with open(commandline_options.run_test, 'w', encoding='utf-8') as f:
+                json.dump(results, f, ensure_ascii=False, indent=2)
+            logging.info(f'[INFO] Generated `{commandline_options.run_test}`')
 
     if commandline_options.configuration is not None:
         if commandline_options.configuration:
