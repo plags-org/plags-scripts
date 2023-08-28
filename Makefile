@@ -30,6 +30,7 @@ test:	test_mod.json
 	python3 -c "import json,os,sys; print(json.dumps({os.path.basename(path)[:-3]: path for path in sorted(sys.argv[1:]) if path.endswith('.py')}, ensure_ascii=False, indent=4))" $(ANSWERS) > answer_mod.json
 	mkdir -p $(FORM_DIR).tmp $(RESULT_DIR)
 	python3 build_as_is.py -f $(FORM_DIR).tmp -ae test_mod.json -ac answer_mod.json -qc -t $(RESULT_DIR) $(MASTERS)
+	python3 build_as_is.py -f $(FORM_DIR).tmp -ae test_mod.json -ac answer_mod.json -qc -t $(RESULT_DIR)/results.json $(MASTERS)
 	rm -fR $(FORM_DIR).tmp
 	rm -f answer_mod.json
 
