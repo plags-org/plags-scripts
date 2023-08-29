@@ -30,7 +30,7 @@ def generate_judge_setting(exercise_key, exercise_version, test_stages, exercise
     states = {
         stage.name: {
             'runner': {
-                'name': 'test_runner_py37_unittest_v3.py',
+                'name': 'test_runner_py310_unittest.py',
                 'version': '',
                 'options': {'evaluation_style': stage.mode}
             },
@@ -43,7 +43,7 @@ def generate_judge_setting(exercise_key, exercise_version, test_stages, exercise
         transitions.append(((stage.name, ('pass',)), (test_stages[i+1].name if i+1 < len(test_stages) else '$', stage.score)))
         transitions.append(((stage.name, 'otherwise'), ('$', stage.unsuccessful_score)))
     return {
-        'schema_version': 'v0.2',
+        'schema_version': 'v1.0',
         'exercise': {
             'name': exercise_key,
             'version': exercise_version
