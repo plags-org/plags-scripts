@@ -154,6 +154,7 @@ def generate_methods(testcases, show_arguments):
         ast.Gt: 'assertGreater',
         ast.GtE: 'assertGreaterEqual',
         testcase_util.approx: 'assertAlmostEqual',
+        testcase_util.error_norm: 'assertAlmostEqual',
     }
 
     output = []
@@ -200,6 +201,11 @@ def generate_methods(testcases, show_arguments):
             option = ''
             if isinstance(op, testcase_util.approx):
                 option = ''.join(f', {key}={val!r}' for key, val in vars(op).items())
+
+            if isinstance(op, testcase_util.error_norm):
+                decls.append('from math import sqrt as _sqrt')
+                lhs = f'_sqrt(sum((x-y)**2 for x, y in zip({lhs}, {rhs!r})))'
+                rhs = 0
 
             assertion = f'self.{method_name}({lhs}, {rhs!r}{option})'
             body = decls + [assertion]

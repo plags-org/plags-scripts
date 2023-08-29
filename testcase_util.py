@@ -5,6 +5,10 @@ class approx:
         self.delta = delta
 
 
+class error_norm(approx):
+    pass
+
+
 class printed:
     def __init__(self, *args, sep=' ', end='\n'):
         import io
