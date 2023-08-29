@@ -5,6 +5,9 @@ deep_thought = 42
 def sqrt(x):
     return math.sqrt(x)
 
+def harmonic_progression(n):
+    return [1/i for i in range(1, n+1)]
+
 def print_square(x):
     print(x*x)
 
