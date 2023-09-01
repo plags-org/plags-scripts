@@ -296,7 +296,7 @@ def main():
     parser.add_argument('-c', '--configuration', nargs='?', const='', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
     parser.add_argument('-f', '--form_dir', nargs='?', help='Specify a target directory of form generation (defualt: the same as the directory of each master).')
-    parser.add_argument('-gd', '--google_drive', nargs='?', metavar='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
+    parser.add_argument('-gd', '--google_drive', metavar='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
     parser.add_argument('-ae', '--auto_eval', nargs='?', const='', metavar='TEST_MOD_JSON', help='Enable auto tests, optionally taking a JSON file to specify test modules (default: test_${exercise_name}.py).')
     parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck_as_is.py'], help='Specify module files of builtin test stages (default: rawcheck_as_is.py), enabled if -ae/--auto_eval is also specified.')
     parser.add_argument('-ac', '--answer_cell', nargs='?', const='',  metavar='PREFILL_CONTENT_JSON', help='Append an answer cell to each form, optionally taking a JSON file to specify prefill answer content (default: ${exercise_name}.py if exists).')
