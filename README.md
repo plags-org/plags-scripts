@@ -1,6 +1,6 @@
-# PLAGS Scripts for Exercises
+# PLAGS Scripts
 
-[PLAGS UT](https://plags.eidos.ic.i.u-tokyo.ac.jp/)に課題をアップロードするためのスクリプト群と簡単な課題例．
+[PLAGS UT](https://github.com/plags-org/plags-ut)のプログラミング課題をビルドするためのスクリプト群と簡単な課題例．
 
 ## 用語
 
@@ -308,3 +308,13 @@ function gen_drive_js() {
 ```
 
 指定したフォルダにform一式を設置後，このスクリプトを実行すると，Driveのrootディレクトリに `drive.json` が生成される．
+
+## 本リポジトリの管理ポリシー
+
+Pull requestは受け付けていない．作成されても機械的にrejectされる．また，デフォルトブランチについてもforce pushで更新されることがある．
+
+本リポジトリへの問い合わせには，issueを利用すること．
+
+## ラインセス
+
+[LICENSE](LICENSE)を参照．
