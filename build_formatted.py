@@ -365,7 +365,7 @@ def main():
     parser.add_argument('-d', '--deadlines', metavar='DEADLINES_JSON', help='Specify a JSON file of deadline settings.')
     parser.add_argument('-c', '--configuration', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
-    parser.add_argument('-f', '--form_dir', help='Specify a target directory of form generation (defualt: the same as the directory of each master).')
+    parser.add_argument('-f', '--form_generation', metavar='TARGET_DIR', help='Generate forms into a specified directory (created if it does not exist).')
     parser.add_argument('-gd', '--google_drive', metavar='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
     parser.add_argument('-ff', '--filled_form', nargs='?', const='form_filled_all.ipynb', help='Generate an all-filled form (default: form_filled_all.ipynb)')
     parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck.py'], help='Specify module files of builtin test stages (default: rawcheck.py)')
@@ -379,6 +379,10 @@ def main():
     for ex in all_exercises:
         cleanup_exercise_master(ex, commandline_options.renew_version)
 
+    for dirpath in {os.path.dirname(ex.path) for ex in all_exercises}:
+        shutil.copy2(judge_util.__file__, dirpath)
+        logging.info(f'[INFO] Placed `{dirpath}/{judge_util.__name__}.py`')
+
     deadlines = {}
     if commandline_options.deadlines:
         with open(commandline_options.deadlines, encoding='utf-8') as f:
@@ -390,29 +394,20 @@ def main():
     if deadlines or drive:
         update_exercise_master_metadata_formwise(singles, bundles, deadlines, drive)
 
-    logging.info('[INFO] Creating bundled forms...')
-    for dirpath, exercises in bundles.items():
-        cells, metadata = create_bundled_form(dirpath, exercises)
-        if commandline_options.form_dir:
-            filepath = os.path.join(commandline_options.form_dir, f'{os.path.basename(dirpath)}.ipynb')
-        else:
-            filepath = os.path.join(dirpath, f'form_{os.path.basename(dirpath)}.ipynb')
-        ipynb_util.save_as_notebook(filepath, cells, metadata)
-        logging.info(f'[INFO] Generated `{filepath}`')
-
-    logging.info('[INFO] Creating single forms...')
-    for exercise in singles:
-        cells, metadata = create_single_form(exercise)
-        if commandline_options.form_dir:
-            filepath = os.path.join(commandline_options.form_dir, f'{exercise.name}.ipynb')
-        else:
-            filepath = os.path.join(os.path.dirname(exercise.path), f'form_{exercise.name}.ipynb')
-        ipynb_util.save_as_notebook(filepath, cells, metadata)
-        logging.info(f'[INFO] Generated `{filepath}`')
-
-    for dirpath in {os.path.dirname(ex.path) for ex in all_exercises}:
-        shutil.copy2(judge_util.__file__, dirpath)
-        logging.info(f'[INFO] Placed `{dirpath}/{judge_util.__name__}.py`')
+    if commandline_options.form_generation:
+        os.makedirs(commandline_options.form_generation, exist_ok=True)
+        logging.info('[INFO] Creating bundled forms...')
+        for dirpath, exercises in bundles.items():
+            cells, metadata = create_bundled_form(dirpath, exercises)
+            filepath = os.path.join(commandline_options.form_generation, f'{os.path.basename(dirpath)}.ipynb')
+            ipynb_util.save_as_notebook(filepath, cells, metadata)
+            logging.info(f'[INFO] Generated `{filepath}`')
+        logging.info('[INFO] Creating single forms...')
+        for exercise in singles:
+            cells, metadata = create_single_form(exercise)
+            filepath = os.path.join(commandline_options.form_generation, f'{exercise.name}.ipynb')
+            ipynb_util.save_as_notebook(filepath, cells, metadata)
+            logging.info(f'[INFO] Generated `{filepath}`')
 
     if commandline_options.configuration:
         judge_setting.load_judge_parameters(commandline_options.configuration)

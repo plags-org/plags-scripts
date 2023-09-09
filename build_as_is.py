@@ -295,7 +295,7 @@ def main():
     parser.add_argument('-d', '--deadlines', metavar='DEADLINES_JSON', help='Specify a JSON file of deadline settings.')
     parser.add_argument('-c', '--configuration', nargs='?', const='', metavar='JUDGE_ENV_JSON', help='Create configuration with environmental parameters specified in JSON.')
     parser.add_argument('-n', '--renew_version', nargs='?', const=hashlib.sha1, metavar='VERSION', help='Renew the versions of every exercise (default: the SHA1 hash of each exercise definition)')
-    parser.add_argument('-f', '--form_dir', nargs='?', help='Specify a target directory of form generation (defualt: the same as the directory of each master).')
+    parser.add_argument('-f', '--form_generation', metavar='TARGET_DIR', help='Generate forms into a specified directory (created if it does not exist).')
     parser.add_argument('-gd', '--google_drive', metavar='DRIVE_JSON', help='Specify a JSON file of the Google Drive IDs/URLs of distributed forms.')
     parser.add_argument('-ae', '--auto_eval', nargs='?', const='', metavar='TEST_MOD_JSON', help='Enable auto tests, optionally taking a JSON file to specify test modules (default: test_${exercise_name}.py).')
     parser.add_argument('-bt', '--builtin_teststage', nargs='*', default=['rawcheck_as_is.py'], help='Specify module files of builtin test stages (default: rawcheck_as_is.py), enabled if -ae/--auto_eval is also specified.')
@@ -341,21 +341,20 @@ def main():
     if deadlines or drive:
         update_exercise_master_metadata(exercises, deadlines, drive)
 
-    logging.info('[INFO] Creating forms...')
-    for ex in exercises:
-        cells, metadata = ipynb_util.load_cells(ex.path, True)
-        version = ipynb_metadata.master_metadata_version(metadata)
-        submission_metadata =  ipynb_metadata.submission_metadata({ex.name: version}, False)
-        if commandline_options.form_dir:
-            filepath = os.path.join(commandline_options.form_dir, f'{ex.name}.ipynb')
-        else:
-            filepath = os.path.join(os.path.dirname(ex.path), f'form_{ex.name}.ipynb')
-        if commandline_options.answer_cell is not None:
-            append_answer_cell(cells, ex.answer_cell_content)
-        if commandline_options.question_cell:
-            append_question_cell(cells)
-        ipynb_util.save_as_notebook(filepath, cells, submission_metadata)
-        logging.info(f'[INFO] Generated `{filepath}`')
+    if commandline_options.form_generation:
+        os.makedirs(commandline_options.form_generation, exist_ok=True)
+        logging.info('[INFO] Creating forms...')
+        for ex in exercises:
+            cells, metadata = ipynb_util.load_cells(ex.path, True)
+            version = ipynb_metadata.master_metadata_version(metadata)
+            submission_metadata =  ipynb_metadata.submission_metadata({ex.name: version}, False)
+            filepath = os.path.join(commandline_options.form_generation, f'{ex.name}.ipynb')
+            if commandline_options.answer_cell is not None:
+                append_answer_cell(cells, ex.answer_cell_content)
+            if commandline_options.question_cell:
+                append_question_cell(cells)
+            ipynb_util.save_as_notebook(filepath, cells, submission_metadata)
+            logging.info(f'[INFO] Generated `{filepath}`')
 
     if commandline_options.run_test is not None:
         logging.info('[INFO] Creating test results...')
