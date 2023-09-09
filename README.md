@@ -56,18 +56,18 @@ masterには，次の2つのスタイルがある．
 
 #### single formの生成
 
-`build_formatted.py` にformatted masterへのパスを渡すと課題をビルドできる．
+`build_formatted.py` に `-f` オプションと共に，formatted masterへのパスを渡すと課題をビルドできる．
 
 ```sh
-python3 build_formatted.py exercises/formatted/ex1/ex1-1.ipynb 
+python3 build_formatted.py -f forms exercises/formatted/ex1/ex1-1.ipynb
 ```
 * `exercises/formatted/ex1/ex1-1.ipynb` から出力部分を除去し，master用メタデータを設定
-* `ex1-1.ipynb` に対応するform `exercises/formatted/ex1/form_ex1-1.ipynb` を生成
+* `ex1-1.ipynb` に対応するform `forms/ex1-1.ipynb` を生成
 
 `build_formatted.py` は複数のmasterを引数に取れるので，次のように指定すると，
 
 ```sh
-python3 build_formatted.py exercises/formatted/ex1/ex1-*.ipynb 
+python3 build_formatted.py -f forms exercises/formatted/ex1/ex1-*.ipynb
 ```
 
 指定されたmaster毎の*single* formが生成される．
@@ -76,16 +76,16 @@ python3 build_formatted.py exercises/formatted/ex1/ex1-*.ipynb
 
 #### bundled formの生成
 
-`build_formatted.py` にディレクトリパスを渡すと，その中にあるmasterをまとめてビルドする．
+`build_formatted.py` に `-f` オプションと共に，ディレクトリパスを渡すと，その中にあるmasterをまとめてビルドする．
 
 ```sh
-python3 build_formatted.py exercises/formatted/ex1
+python3 build_formatted.py -f forms exercises/formatted/ex1
 ```
 
 * `exercises/formatted/ex1/ex1-{1,2}.ipynb` から出力部分を除去し，master用メタデータを設定
-* `exercises/formatted/ex1/form_ex1.ipynb` を生成
+* `forms/ex1.ipynb` を生成
 
-この `form_ex1.ipynb` は，`ex1-{1,2}.ipynb` を束ねた*bundled* formである．
+この `ex1.ipynb` は，`ex1-{1,2}.ipynb` を束ねた*bundled* formである．
 
 bundled formを1つ提出することで，その中に含まれる課題を全て提出したことになる．
 
@@ -114,11 +114,11 @@ as-isにおいて，自動評価はオプショナルである．自動評価用
 as-isでは，常に1つのmasterに対して1つのformが生成される．
 
 ```sh
-python3 build_as_is.py -ac -qc exercises/as-is/ex2.ipynb
+python3 build_as_is.py -f forms -ac -qc exercises/as-is/ex2.ipynb
 ```
 
 * `exercises/as-is/ex2.ipynb` にmaster用メタデータを設定
-* `ex2.ipynb` に対応するform `exercises/as-is/form_ex2.ipynb` を生成
+* `ex2.ipynb` に対応するform `forms/ex2.ipynb` を生成
 * `-ac` オプションにより，formに解答セルを追加
 * `-qc` オプションにより，formに質問セルを追加
 
@@ -127,7 +127,7 @@ python3 build_as_is.py -ac -qc exercises/as-is/ex2.ipynb
 自動評価を有効にする場合は，`-ag` オプションを追加する．これによって，master用メタデータは変化するが，生成されるformは変化しない．
 
 ```sh
-python3 build_as_is.py -ag -ac -qc exercises/as-is/ex2.ipynb
+python3 build_as_is.py -f forms -ag -ac -qc exercises/as-is/ex2.ipynb
 ```
 
 このとき，`exercises/as-is/test_ex2.py` が，課題固有のテストコードとして解釈される．
@@ -158,9 +158,9 @@ single formを配布したいなら，`exercises/formatted/ex1/ex1-1.ipynb` を�
 
 bundled formを配布したい場合は，まず適当な課題ディレクトリを作り，その中にmasterを任意個配置する．このとき，次の点を踏まえて，masterや課題ディレクトリの命名に留意すること．
 
-* `spam` というディレクトリが指定されると，`spam/form_spam.ipynb` というformを作る．
-* 正規表現 `spam/spam[-_].*\.ipynb` にマッチするファイルが `spam/form_spam.ipynb` を作るmasterと解釈される．
-* `spam/form_spam.ipynb` 内での課題の順序は，masterのファイル名の辞書順である．
+* `spam` という課題ディレクトリが指定されると，form `spam.ipynb` が `-f` オプションで指定されたディレクトリに作られる．
+* 正規表現 `spam/spam[-_].*\.ipynb` にマッチするファイルが `spam.ipynb` を作るmasterと解釈される．
+* `spam.ipynb` 内での課題の順序は，masterのファイル名の辞書順である．
 
 formatted masterの作成には，`template_formatted.py` を用いるのが安全かつ効率的である．これは，問題文（`-d`），prefillコード（`-p`），ヒントとしてformに含めるassertion（`-i`），模範解答（`-a`）の md/py ファイルから，formatted masterを構成するスクリプトである．具体的には，次のように使う．
 
