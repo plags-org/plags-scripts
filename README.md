@@ -124,10 +124,10 @@ python3 build_as_is.py -f forms -ac -qc exercises/as-is/ex2.ipynb
 
 `-ac` オプションを与えるとき，解答セルを事前に埋める（prefill）コードを設定できる．上の例の場合，`exercises/as-is/ex2.py` がprefillコードと解釈される．
 
-自動評価を有効にする場合は，`-ag` オプションを追加する．これによって，master用メタデータは変化するが，生成されるformは変化しない．
+自動評価を有効にする場合は，`-ae` オプションを追加する．これによって，master用メタデータは変化するが，生成されるformは変化しない．
 
 ```sh
-python3 build_as_is.py -f forms -ag -ac -qc exercises/as-is/ex2.ipynb
+python3 build_as_is.py -f forms -ae -ac -qc exercises/as-is/ex2.ipynb
 ```
 
 このとき，`exercises/as-is/test_ex2.py` が，課題固有のテストコードとして解釈される．
@@ -143,7 +143,7 @@ python3 build_as_is.py -c -ac -qc exercises/as-is/ex2.ipynb
 自動評価を有効にする場合，`build_formatted.py` と同様に， `judge_env.json` の引数付きで `-c` オプションを与える．
 
 ```sh
-python3 build_as_is.py -ag -c judge_env.json -ac -qc exercises/as-is/ex2.ipynb
+python3 build_as_is.py -ae -c judge_env.json -ac -qc exercises/as-is/ex2.ipynb
 ```
 
 尚，`build_formatted.py` と同様に，masterは複数指定でき，それらをまとめてビルドした `conf.zip` を生成できる．
